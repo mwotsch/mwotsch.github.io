@@ -655,9 +655,9 @@ class ChessRatingSystem:
                     <label for="result-filter">Filter by Result:</label>
                     <select id="result-filter">
                         <option value="">All Results</option>
-                        <option value="1:0">White Wins</option>
-                        <option value="0:1">Black Wins</option>
-                        <option value="0.5:0.5">Draw</option>
+                        <option value="1-0">White Wins</option>
+                        <option value="0-1">Black Wins</option>
+                        <option value="0.5-0.5">Draw</option>
                     </select>
                     
                     <button onclick="applyFilters()">Apply Filters</button>
