@@ -1,0 +1,825 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OU Chess Club Ratings</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        h1, h2 {
+            color: #333;
+            text-align: center;
+        }
+        
+        .section {
+            margin: 30px 0;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+        
+        th, td {
+            border: 1px solid #ddd;
+            padding: 12px;
+            text-align: left;
+        }
+        
+        th {
+            background-color: #4CAF50;
+            color: white;
+            cursor: pointer;
+            user-select: none;
+        }
+        
+        th:hover {
+            background-color: #45a049;
+        }
+        
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        
+        tr:hover {
+            background-color: #f5f5f5;
+        }
+        
+        .player-name {
+            cursor: pointer;
+            color: #2196F3;
+            text-decoration: underline;
+        }
+        
+        .player-name:hover {
+            color: #0c7cd5;
+        }
+        
+        .filter-container {
+            margin: 20px 0;
+            display: flex;
+            gap: 20px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        
+        .filter-container label {
+            font-weight: bold;
+        }
+        
+        .filter-container input, .filter-container select {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        
+        .filter-container button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        
+        .filter-container button:hover {
+            background-color: #45a049;
+        }
+        
+        .back-button {
+            background-color: #2196F3;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 20px 0;
+        }
+        
+        .back-button:hover {
+            background-color: #0c7cd5;
+        }
+        
+        .hidden {
+            display: none;
+        }
+        
+        .sort-indicator {
+            margin-left: 5px;
+        }
+        
+        .stats-summary {
+            background-color: #f0f8ff;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+        
+        .chart-container {
+            background-color: white;
+            padding: 20px;
+            border-radius: 5px;
+            margin: 20px 0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .chart-container canvas {
+            max-height: 400px;
+        }
+        
+        .stats-summary a {
+            color: #2196F3;
+            text-decoration: none;
+        }
+        
+        .stats-summary a:hover {
+            color: #0c7cd5;
+            text-decoration: underline;
+        }
+        
+        .ratings-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 20px;
+            margin: 15px 0;
+        }
+        
+        .rating-column {
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            background-color: #f9f9f9;
+        }
+        
+        .rating-column h4 {
+            margin: 0 0 10px 0;
+            color: #333;
+            font-size: 14px;
+            font-weight: bold;
+        }
+        
+        .rating-value {
+            font-weight: bold;
+            margin: 5px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>OU Chess Club Ratings</h1>
+        
+        <!-- Main Ratings View -->
+        <div id="main-view">
+            <div class="section">
+                <h2>Player Ratings</h2>
+                <table id="ratings-table">
+                    <thead>
+                        <tr>
+                            <th onclick="sortRatingsTable(0)">Player Name <span class="sort-indicator"></span></th>
+                            <th onclick="sortRatingsTable(1)">ELO <span class="sort-indicator"></span></th>
+                            <th onclick="sortRatingsTable(2)">Glicko-2 <span class="sort-indicator"></span></th>
+                            <th onclick="sortRatingsTable(3)">USCF <span class="sort-indicator"></span></th>
+                            <th onclick="sortRatingsTable(4)">Games Played <span class="sort-indicator"></span></th>
+                            <th onclick="sortRatingsTable(5)">Wins <span class="sort-indicator"></span></th>
+                            <th onclick="sortRatingsTable(6)">Draws <span class="sort-indicator"></span></th>
+                            <th onclick="sortRatingsTable(7)">Losses <span class="sort-indicator"></span></th>
+                            <th onclick="sortRatingsTable(8)">Win Rate <span class="sort-indicator"></span></th>
+                        </tr>
+                    </thead>
+                    <tbody id="ratings-tbody">
+                    </tbody>
+                </table>
+            </div>
+            
+            <div class="section">
+                <h2>Game History</h2>
+                <div class="filter-container">
+                    <label for="player-filter">Filter by Player:</label>
+                    <input type="text" id="player-filter" placeholder="Enter player name">
+                    
+                    <label for="result-filter">Filter by Result:</label>
+                    <select id="result-filter">
+                        <option value="">All Results</option>
+                        <option value="1:0">White Wins</option>
+                        <option value="0:1">Black Wins</option>
+                        <option value="0.5:0.5">Draw</option>
+                    </select>
+                    
+                    <button onclick="applyFilters()">Apply Filters</button>
+                    <button onclick="clearFilters()">Clear Filters</button>
+                </div>
+                
+                <table id="games-table">
+                    <thead>
+                        <tr>
+                            <th onclick="sortGamesTable(0)">Game # <span class="sort-indicator"></span></th>
+                            <th onclick="sortGamesTable(1)">Date <span class="sort-indicator"></span></th>
+                            <th onclick="sortGamesTable(2)">White Player <span class="sort-indicator"></span></th>
+                            <th onclick="sortGamesTable(3)">Black Player <span class="sort-indicator"></span></th>
+                            <th onclick="sortGamesTable(4)">Result <span class="sort-indicator"></span></th>
+                        </tr>
+                    </thead>
+                    <tbody id="games-tbody">
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        
+        <!-- Player Detail View -->
+        <div id="player-view" class="hidden">
+            <button class="back-button" onclick="showMainView()">← Back to Main View</button>
+            <h2 id="player-title"></h2>
+            <div id="player-stats" class="stats-summary"></div>
+            
+            <div class="chart-container">
+                <h3>Rating History</h3>
+                <canvas id="rating-chart"></canvas>
+            </div>
+            
+            <div class="stats-summary">
+                <h3>Ratings</h3>
+                <div id="current-ratings"></div>
+            </div>
+            
+            <div class="stats-summary">
+                <h3>Biggest Wins (Against Higher-Rated Players)</h3>
+                <div id="biggest-wins"></div>
+            </div>
+            
+            <div class="stats-summary">
+                <h3>Biggest Upsets (Losses to Lower-Rated Players)</h3>
+                <div id="biggest-upsets"></div>
+            </div>
+            
+            <h3>Head-to-Head Records</h3>
+            <table id="h2h-table">
+                <thead>
+                    <tr>
+                        <th onclick="sortH2HTable(0)">Opponent <span class="sort-indicator"></span></th>
+                        <th onclick="sortH2HTable(1)">Games <span class="sort-indicator"></span></th>
+                        <th onclick="sortH2HTable(2)">Wins <span class="sort-indicator"></span></th>
+                        <th onclick="sortH2HTable(3)">Draws <span class="sort-indicator"></span></th>
+                        <th onclick="sortH2HTable(4)">Losses <span class="sort-indicator"></span></th>
+                        <th onclick="sortH2HTable(5)">Score <span class="sort-indicator"></span></th>
+                    </tr>
+                </thead>
+                <tbody id="h2h-tbody">
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        // Embedded data from Python
+        let players = {"Mitch K.": {"name": "Mitch K.", "rating": 1184, "glicko_rating": 1060, "glicko_deviation": 218.9, "glicko_volatility": 0.2, "uscf_rating": 1180, "uscf_games": 3, "games": 3, "wins": 1, "draws": 0, "losses": 2, "opponents": {"Marco W.": {"games": 1, "wins": 0, "draws": 0, "losses": 1}, "Tram T.": {"games": 1, "wins": 1, "draws": 0, "losses": 0}, "Nick H.": {"games": 1, "wins": 0, "draws": 0, "losses": 1}}, "biggest_wins": [], "biggest_upsets": [], "highest_elo": 1200, "lowest_elo": 1184, "highest_glicko": 1200, "lowest_glicko": 1037, "highest_uscf": 1200, "lowest_uscf": 1180, "rating_history": [{"game": 1, "date": "Sep 10, 2025", "elo": 1184, "glicko2": 1037, "uscf": 1180}, {"game": 12, "date": "Sep 10, 2025", "elo": 1200, "glicko2": 1168, "uscf": 1200}, {"game": 15, "date": "Sep 10, 2025", "elo": 1184, "glicko2": 1060, "uscf": 1180}]}, "Marco W.": {"name": "Marco W.", "rating": 1231, "glicko_rating": 1476, "glicko_deviation": 198.6, "glicko_volatility": 0.2, "uscf_rating": 1239, "uscf_games": 4, "games": 4, "wins": 3, "draws": 0, "losses": 1, "opponents": {"Mitch K.": {"games": 1, "wins": 1, "draws": 0, "losses": 0}, "Carson G.": {"games": 1, "wins": 1, "draws": 0, "losses": 0}, "Eric T.": {"games": 1, "wins": 1, "draws": 0, "losses": 0}, "Chris C.": {"games": 1, "wins": 0, "draws": 0, "losses": 1}}, "biggest_wins": [], "biggest_upsets": [], "highest_elo": 1247, "lowest_elo": 1200, "highest_glicko": 1563, "lowest_glicko": 1200, "highest_uscf": 1259, "lowest_uscf": 1200, "rating_history": [{"game": 1, "date": "Sep 10, 2025", "elo": 1216, "glicko2": 1363, "uscf": 1220}, {"game": 9, "date": "Sep 10, 2025", "elo": 1231, "glicko2": 1454, "uscf": 1239}, {"game": 13, "date": "Sep 10, 2025", "elo": 1247, "glicko2": 1563, "uscf": 1259}, {"game": 19, "date": "Sep 10, 2025", "elo": 1231, "glicko2": 1476, "uscf": 1239}]}, "Chris C.": {"name": "Chris C.", "rating": 1264, "glicko_rating": 1677, "glicko_deviation": 197.0, "glicko_volatility": 0.2, "uscf_rating": 1280, "uscf_games": 4, "games": 4, "wins": 4, "draws": 0, "losses": 0, "opponents": {"Reese H.": {"games": 1, "wins": 1, "draws": 0, "losses": 0}, "Jonathan D.": {"games": 1, "wins": 1, "draws": 0, "losses": 0}, "Sam M.": {"games": 1, "wins": 1, "draws": 0, "losses": 0}, "Marco W.": {"games": 1, "wins": 1, "draws": 0, "losses": 0}}, "biggest_wins": [], "biggest_upsets": [], "highest_elo": 1264, "lowest_elo": 1200, "highest_glicko": 1677, "lowest_glicko": 1200, "highest_uscf": 1280, "lowest_uscf": 1200, "rating_history": [{"game": 2, "date": "Sep 10, 2025", "elo": 1216, "glicko2": 1363, "uscf": 1220}, {"game": 7, "date": "Sep 10, 2025", "elo": 1232, "glicko2": 1494, "uscf": 1240}, {"game": 14, "date": "Sep 10, 2025", "elo": 1248, "glicko2": 1592, "uscf": 1260}, {"game": 19, "date": "Sep 10, 2025", "elo": 1264, "glicko2": 1677, "uscf": 1280}]}, "Reese H.": {"name": "Reese H.", "rating": 1200, "glicko_rating": 1132, "glicko_deviation": 203.9, "glicko_volatility": 0.2, "uscf_rating": 1200, "uscf_games": 4, "games": 4, "wins": 2, "draws": 0, "losses": 2, "opponents": {"Chris C.": {"games": 1, "wins": 0, "draws": 0, "losses": 1}, "Nick H.": {"games": 1, "wins": 0, "draws": 0, "losses": 1}, "Ben B.": {"games": 1, "wins": 1, "draws": 0, "losses": 0}, "Robert V.": {"games": 1, "wins": 1, "draws": 0, "losses": 0}}, "biggest_wins": [{"opponent": "Ben B.", "rating_diff": 17, "own_rating": 1168, "opponent_rating": 1185, "game_number": 18, "date": "Sep 10, 2025", "result": "Win"}], "biggest_upsets": [], "highest_elo": 1200, "lowest_elo": 1168, "highest_glicko": 1200, "lowest_glicko": 906, "highest_uscf": 1200, "lowest_uscf": 1160, "rating_history": [{"game": 2, "date": "Sep 10, 2025", "elo": 1184, "glicko2": 1037, "uscf": 1180}, {"game": 11, "date": "Sep 10, 2025", "elo": 1168, "glicko2": 906, "uscf": 1160}, {"game": 18, "date": "Sep 10, 2025", "elo": 1185, "glicko2": 1067, "uscf": 1181}, {"game": 23, "date": "Sep 10, 2025", "elo": 1200, "glicko2": 1132, "uscf": 1200}]}, "Eric T.": {"name": "Eric T.", "rating": 1231, "glicko_rating": 1437, "glicko_deviation": 200.7, "glicko_volatility": 0.2, "uscf_rating": 1239, "uscf_games": 4, "games": 4, "wins": 3, "draws": 0, "losses": 1, "opponents": {"Tram T.": {"games": 1, "wins": 1, "draws": 0, "losses": 0}, "David L.": {"games": 1, "wins": 1, "draws": 0, "losses": 0}, "Marco W.": {"games": 1, "wins": 0, "draws": 0, "losses": 1}, "Sam M.": {"games": 1, "wins": 1, "draws": 0, "losses": 0}}, "biggest_wins": [], "biggest_upsets": [], "highest_elo": 1231, "lowest_elo": 1200, "highest_glicko": 1452, "lowest_glicko": 1200, "highest_uscf": 1239, "lowest_uscf": 1200, "rating_history": [{"game": 3, "date": "Sep 10, 2025", "elo": 1216, "glicko2": 1363, "uscf": 1220}, {"game": 8, "date": "Sep 10, 2025", "elo": 1231, "glicko2": 1452, "uscf": 1239}, {"game": 13, "date": "Sep 10, 2025", "elo": 1215, "glicko2": 1339, "uscf": 1219}, {"game": 20, "date": "Sep 10, 2025", "elo": 1231, "glicko2": 1437, "uscf": 1239}]}, "Tram T.": {"name": "Tram T.", "rating": 1152, "glicko_rating": 806, "glicko_deviation": 217.2, "glicko_volatility": 0.2, "uscf_rating": 1140, "uscf_games": 3, "games": 3, "wins": 0, "draws": 0, "losses": 3, "opponents": {"Eric T.": {"games": 1, "wins": 0, "draws": 0, "losses": 1}, "Mitch K.": {"games": 1, "wins": 0, "draws": 0, "losses": 1}, "Ben B.": {"games": 1, "wins": 0, "draws": 0, "losses": 1}}, "biggest_wins": [], "biggest_upsets": [], "highest_elo": 1200, "lowest_elo": 1152, "highest_glicko": 1200, "lowest_glicko": 806, "highest_uscf": 1200, "lowest_uscf": 1140, "rating_history": [{"game": 3, "date": "Sep 10, 2025", "elo": 1184, "glicko2": 1037, "uscf": 1180}, {"game": 12, "date": "Sep 10, 2025", "elo": 1168, "glicko2": 906, "uscf": 1160}, {"game": 24, "date": "Sep 10, 2025", "elo": 1152, "glicko2": 806, "uscf": 1140}]}, "Carson G.": {"name": "Carson G.", "rating": 1216, "glicko_rating": 1255, "glicko_deviation": 206.7, "glicko_volatility": 0.2, "uscf_rating": 1219, "uscf_games": 4, "games": 4, "wins": 2, "draws": 1, "losses": 1, "opponents": {"Ben B.": {"games": 1, "wins": 0, "draws": 1, "losses": 0}, "Marco W.": {"games": 1, "wins": 0, "draws": 0, "losses": 1}, "Robert V.": {"games": 1, "wins": 1, "draws": 0, "losses": 0}, "David L.": {"games": 1, "wins": 1, "draws": 0, "losses": 0}}, "biggest_wins": [], "biggest_upsets": [], "highest_elo": 1216, "lowest_elo": 1185, "highest_glicko": 1255, "lowest_glicko": 1110, "highest_uscf": 1219, "lowest_uscf": 1181, "rating_history": [{"game": 4, "date": "Sep 10, 2025", "elo": 1200, "glicko2": 1200, "uscf": 1200}, {"game": 9, "date": "Sep 10, 2025", "elo": 1185, "glicko2": 1110, "uscf": 1181}, {"game": 17, "date": "Sep 10, 2025", "elo": 1201, "glicko2": 1201, "uscf": 1201}, {"game": 22, "date": "Sep 10, 2025", "elo": 1216, "glicko2": 1255, "uscf": 1219}]}, "Ben B.": {"name": "Ben B.", "rating": 1184, "glicko_rating": 1030, "glicko_deviation": 203.6, "glicko_volatility": 0.2, "uscf_rating": 1180, "uscf_games": 4, "games": 4, "wins": 1, "draws": 1, "losses": 2, "opponents": {"Carson G.": {"games": 1, "wins": 0, "draws": 1, "losses": 0}, "Sam M.": {"games": 1, "wins": 0, "draws": 0, "losses": 1}, "Reese H.": {"games": 1, "wins": 0, "draws": 0, "losses": 1}, "Tram T.": {"games": 1, "wins": 1, "draws": 0, "losses": 0}}, "biggest_wins": [], "biggest_upsets": [{"opponent": "Reese H.", "rating_diff": 17, "own_rating": 1185, "opponent_rating": 1168, "game_number": 18, "date": "Sep 10, 2025", "result": "Loss"}], "highest_elo": 1200, "lowest_elo": 1168, "highest_glicko": 1200, "lowest_glicko": 945, "highest_uscf": 1200, "lowest_uscf": 1160, "rating_history": [{"game": 4, "date": "Sep 10, 2025", "elo": 1200, "glicko2": 1200, "uscf": 1200}, {"game": 10, "date": "Sep 10, 2025", "elo": 1185, "glicko2": 1110, "uscf": 1181}, {"game": 18, "date": "Sep 10, 2025", "elo": 1168, "glicko2": 945, "uscf": 1160}, {"game": 24, "date": "Sep 10, 2025", "elo": 1184, "glicko2": 1030, "uscf": 1180}]}, "Sam M.": {"name": "Sam M.", "rating": 1199, "glicko_rating": 1258, "glicko_deviation": 198.5, "glicko_volatility": 0.2, "uscf_rating": 1199, "uscf_games": 4, "games": 4, "wins": 2, "draws": 0, "losses": 2, "opponents": {"Nick H.": {"games": 1, "wins": 1, "draws": 0, "losses": 0}, "Ben B.": {"games": 1, "wins": 1, "draws": 0, "losses": 0}, "Chris C.": {"games": 1, "wins": 0, "draws": 0, "losses": 1}, "Eric T.": {"games": 1, "wins": 0, "draws": 0, "losses": 1}}, "biggest_wins": [], "biggest_upsets": [], "highest_elo": 1231, "lowest_elo": 1199, "highest_glicko": 1454, "lowest_glicko": 1200, "highest_uscf": 1239, "lowest_uscf": 1199, "rating_history": [{"game": 5, "date": "Sep 10, 2025", "elo": 1216, "glicko2": 1363, "uscf": 1220}, {"game": 10, "date": "Sep 10, 2025", "elo": 1231, "glicko2": 1454, "uscf": 1239}, {"game": 14, "date": "Sep 10, 2025", "elo": 1215, "glicko2": 1353, "uscf": 1219}, {"game": 20, "date": "Sep 10, 2025", "elo": 1199, "glicko2": 1258, "uscf": 1199}]}, "Nick H.": {"name": "Nick H.", "rating": 1232, "glicko_rating": 1373, "glicko_deviation": 196.8, "glicko_volatility": 0.2, "uscf_rating": 1240, "uscf_games": 4, "games": 4, "wins": 3, "draws": 0, "losses": 1, "opponents": {"Sam M.": {"games": 1, "wins": 0, "draws": 0, "losses": 1}, "Reese H.": {"games": 1, "wins": 1, "draws": 0, "losses": 0}, "Mitch K.": {"games": 1, "wins": 1, "draws": 0, "losses": 0}, "Jonathan D.": {"games": 1, "wins": 1, "draws": 0, "losses": 0}}, "biggest_wins": [], "biggest_upsets": [], "highest_elo": 1232, "lowest_elo": 1184, "highest_glicko": 1373, "lowest_glicko": 1037, "highest_uscf": 1240, "lowest_uscf": 1180, "rating_history": [{"game": 5, "date": "Sep 10, 2025", "elo": 1184, "glicko2": 1037, "uscf": 1180}, {"game": 11, "date": "Sep 10, 2025", "elo": 1200, "glicko2": 1168, "uscf": 1200}, {"game": 15, "date": "Sep 10, 2025", "elo": 1216, "glicko2": 1276, "uscf": 1220}, {"game": 21, "date": "Sep 10, 2025", "elo": 1232, "glicko2": 1373, "uscf": 1240}]}, "Robert V.": {"name": "Robert V.", "rating": 1153, "glicko_rating": 848, "glicko_deviation": 217.5, "glicko_volatility": 0.2, "uscf_rating": 1141, "uscf_games": 3, "games": 3, "wins": 0, "draws": 0, "losses": 3, "opponents": {"Jonathan D.": {"games": 1, "wins": 0, "draws": 0, "losses": 1}, "Carson G.": {"games": 1, "wins": 0, "draws": 0, "losses": 1}, "Reese H.": {"games": 1, "wins": 0, "draws": 0, "losses": 1}}, "biggest_wins": [], "biggest_upsets": [], "highest_elo": 1200, "lowest_elo": 1153, "highest_glicko": 1200, "lowest_glicko": 848, "highest_uscf": 1200, "lowest_uscf": 1141, "rating_history": [{"game": 6, "date": "Sep 10, 2025", "elo": 1184, "glicko2": 1037, "uscf": 1180}, {"game": 17, "date": "Sep 10, 2025", "elo": 1168, "glicko2": 923, "uscf": 1160}, {"game": 23, "date": "Sep 10, 2025", "elo": 1153, "glicko2": 848, "uscf": 1141}]}, "Jonathan D.": {"name": "Jonathan D.", "rating": 1199, "glicko_rating": 1205, "glicko_deviation": 200.1, "glicko_volatility": 0.2, "uscf_rating": 1199, "uscf_games": 4, "games": 4, "wins": 2, "draws": 0, "losses": 2, "opponents": {"Robert V.": {"games": 1, "wins": 1, "draws": 0, "losses": 0}, "Chris C.": {"games": 1, "wins": 0, "draws": 0, "losses": 1}, "David L.": {"games": 1, "wins": 1, "draws": 0, "losses": 0}, "Nick H.": {"games": 1, "wins": 0, "draws": 0, "losses": 1}}, "biggest_wins": [], "biggest_upsets": [], "highest_elo": 1216, "lowest_elo": 1199, "highest_glicko": 1363, "lowest_glicko": 1200, "highest_uscf": 1220, "lowest_uscf": 1199, "rating_history": [{"game": 6, "date": "Sep 10, 2025", "elo": 1216, "glicko2": 1363, "uscf": 1220}, {"game": 7, "date": "Sep 10, 2025", "elo": 1200, "glicko2": 1232, "uscf": 1200}, {"game": 16, "date": "Sep 10, 2025", "elo": 1215, "glicko2": 1306, "uscf": 1219}, {"game": 21, "date": "Sep 10, 2025", "elo": 1199, "glicko2": 1205, "uscf": 1199}]}, "David L.": {"name": "David L.", "rating": 1155, "glicko_rating": 928, "glicko_deviation": 221.1, "glicko_volatility": 0.2, "uscf_rating": 1144, "uscf_games": 3, "games": 3, "wins": 0, "draws": 0, "losses": 3, "opponents": {"Eric T.": {"games": 1, "wins": 0, "draws": 0, "losses": 1}, "Jonathan D.": {"games": 1, "wins": 0, "draws": 0, "losses": 1}, "Carson G.": {"games": 1, "wins": 0, "draws": 0, "losses": 1}}, "biggest_wins": [], "biggest_upsets": [], "highest_elo": 1200, "lowest_elo": 1155, "highest_glicko": 1200, "lowest_glicko": 928, "highest_uscf": 1200, "lowest_uscf": 1144, "rating_history": [{"game": 8, "date": "Sep 10, 2025", "elo": 1185, "glicko2": 1083, "uscf": 1181}, {"game": 16, "date": "Sep 10, 2025", "elo": 1170, "glicko2": 990, "uscf": 1162}, {"game": 22, "date": "Sep 10, 2025", "elo": 1155, "glicko2": 928, "uscf": 1144}]}};
+        let games = [{"game_number": 1, "white_player": "Mitch K.", "black_player": "Marco W.", "result": "0-1", "date": "Sep 10, 2025", "date_raw": "20250910", "white_rating_before": 1200, "black_rating_before": 1200, "white_rating_after": 1184, "black_rating_after": 1216, "white_change": -16, "black_change": 16}, {"game_number": 2, "white_player": "Chris C.", "black_player": "Reese H.", "result": "1-0", "date": "Sep 10, 2025", "date_raw": "20250910", "white_rating_before": 1200, "black_rating_before": 1200, "white_rating_after": 1216, "black_rating_after": 1184, "white_change": 16, "black_change": -16}, {"game_number": 3, "white_player": "Eric T.", "black_player": "Tram T.", "result": "1-0", "date": "Sep 10, 2025", "date_raw": "20250910", "white_rating_before": 1200, "black_rating_before": 1200, "white_rating_after": 1216, "black_rating_after": 1184, "white_change": 16, "black_change": -16}, {"game_number": 4, "white_player": "Carson G.", "black_player": "Ben B.", "result": "0.5-0.5", "date": "Sep 10, 2025", "date_raw": "20250910", "white_rating_before": 1200, "black_rating_before": 1200, "white_rating_after": 1200, "black_rating_after": 1200, "white_change": 0, "black_change": 0}, {"game_number": 5, "white_player": "Sam M.", "black_player": "Nick H.", "result": "1-0", "date": "Sep 10, 2025", "date_raw": "20250910", "white_rating_before": 1200, "black_rating_before": 1200, "white_rating_after": 1216, "black_rating_after": 1184, "white_change": 16, "black_change": -16}, {"game_number": 6, "white_player": "Robert V.", "black_player": "Jonathan D.", "result": "0-1", "date": "Sep 10, 2025", "date_raw": "20250910", "white_rating_before": 1200, "black_rating_before": 1200, "white_rating_after": 1184, "black_rating_after": 1216, "white_change": -16, "black_change": 16}, {"game_number": 7, "white_player": "Jonathan D.", "black_player": "Chris C.", "result": "0-1", "date": "Sep 10, 2025", "date_raw": "20250910", "white_rating_before": 1216, "black_rating_before": 1216, "white_rating_after": 1200, "black_rating_after": 1232, "white_change": -16, "black_change": 16}, {"game_number": 8, "white_player": "David L.", "black_player": "Eric T.", "result": "0-1", "date": "Sep 10, 2025", "date_raw": "20250910", "white_rating_before": 1200, "black_rating_before": 1216, "white_rating_after": 1185, "black_rating_after": 1231, "white_change": -15, "black_change": 15}, {"game_number": 9, "white_player": "Marco W.", "black_player": "Carson G.", "result": "1-0", "date": "Sep 10, 2025", "date_raw": "20250910", "white_rating_before": 1216, "black_rating_before": 1200, "white_rating_after": 1231, "black_rating_after": 1185, "white_change": 15, "black_change": -15}, {"game_number": 10, "white_player": "Ben B.", "black_player": "Sam M.", "result": "0-1", "date": "Sep 10, 2025", "date_raw": "20250910", "white_rating_before": 1200, "black_rating_before": 1216, "white_rating_after": 1185, "black_rating_after": 1231, "white_change": -15, "black_change": 15}, {"game_number": 11, "white_player": "Nick H.", "black_player": "Reese H.", "result": "1-0", "date": "Sep 10, 2025", "date_raw": "20250910", "white_rating_before": 1184, "black_rating_before": 1184, "white_rating_after": 1200, "black_rating_after": 1168, "white_change": 16, "black_change": -16}, {"game_number": 12, "white_player": "Tram T.", "black_player": "Mitch K.", "result": "0-1", "date": "Sep 10, 2025", "date_raw": "20250910", "white_rating_before": 1184, "black_rating_before": 1184, "white_rating_after": 1168, "black_rating_after": 1200, "white_change": -16, "black_change": 16}, {"game_number": 13, "white_player": "Marco W.", "black_player": "Eric T.", "result": "1-0", "date": "Sep 10, 2025", "date_raw": "20250910", "white_rating_before": 1231, "black_rating_before": 1231, "white_rating_after": 1247, "black_rating_after": 1215, "white_change": 16, "black_change": -16}, {"game_number": 14, "white_player": "Chris C.", "black_player": "Sam M.", "result": "1-0", "date": "Sep 10, 2025", "date_raw": "20250910", "white_rating_before": 1232, "black_rating_before": 1231, "white_rating_after": 1248, "black_rating_after": 1215, "white_change": 16, "black_change": -16}, {"game_number": 15, "white_player": "Mitch K.", "black_player": "Nick H.", "result": "0-1", "date": "Sep 10, 2025", "date_raw": "20250910", "white_rating_before": 1200, "black_rating_before": 1200, "white_rating_after": 1184, "black_rating_after": 1216, "white_change": -16, "black_change": 16}, {"game_number": 16, "white_player": "Jonathan D.", "black_player": "David L.", "result": "1-0", "date": "Sep 10, 2025", "date_raw": "20250910", "white_rating_before": 1200, "black_rating_before": 1185, "white_rating_after": 1215, "black_rating_after": 1170, "white_change": 15, "black_change": -15}, {"game_number": 17, "white_player": "Carson G.", "black_player": "Robert V.", "result": "1-0", "date": "Sep 10, 2025", "date_raw": "20250910", "white_rating_before": 1185, "black_rating_before": 1184, "white_rating_after": 1201, "black_rating_after": 1168, "white_change": 16, "black_change": -16}, {"game_number": 18, "white_player": "Reese H.", "black_player": "Ben B.", "result": "1-0", "date": "Sep 10, 2025", "date_raw": "20250910", "white_rating_before": 1168, "black_rating_before": 1185, "white_rating_after": 1185, "black_rating_after": 1168, "white_change": 17, "black_change": -17}, {"game_number": 19, "white_player": "Chris C.", "black_player": "Marco W.", "result": "1-0", "date": "Sep 10, 2025", "date_raw": "20250910", "white_rating_before": 1248, "black_rating_before": 1247, "white_rating_after": 1264, "black_rating_after": 1231, "white_change": 16, "black_change": -16}, {"game_number": 20, "white_player": "Sam M.", "black_player": "Eric T.", "result": "0-1", "date": "Sep 10, 2025", "date_raw": "20250910", "white_rating_before": 1215, "black_rating_before": 1215, "white_rating_after": 1199, "black_rating_after": 1231, "white_change": -16, "black_change": 16}, {"game_number": 21, "white_player": "Nick H.", "black_player": "Jonathan D.", "result": "1-0", "date": "Sep 10, 2025", "date_raw": "20250910", "white_rating_before": 1216, "black_rating_before": 1215, "white_rating_after": 1232, "black_rating_after": 1199, "white_change": 16, "black_change": -16}, {"game_number": 22, "white_player": "David L.", "black_player": "Carson G.", "result": "0-1", "date": "Sep 10, 2025", "date_raw": "20250910", "white_rating_before": 1170, "black_rating_before": 1201, "white_rating_after": 1155, "black_rating_after": 1216, "white_change": -15, "black_change": 15}, {"game_number": 23, "white_player": "Reese H.", "black_player": "Robert V.", "result": "1-0", "date": "Sep 10, 2025", "date_raw": "20250910", "white_rating_before": 1185, "black_rating_before": 1168, "white_rating_after": 1200, "black_rating_after": 1153, "white_change": 15, "black_change": -15}, {"game_number": 24, "white_player": "Ben B.", "black_player": "Tram T.", "result": "1-0", "date": "Sep 10, 2025", "date_raw": "20250910", "white_rating_before": 1168, "black_rating_before": 1168, "white_rating_after": 1184, "black_rating_after": 1152, "white_change": 16, "black_change": -16}];
+        let currentSort = { table: '', column: -1, ascending: true };
+        
+        // HTML escape function to prevent XSS
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        // Populate ratings table
+        function populateRatingsTable() {
+            const tbody = document.getElementById('ratings-tbody');
+            tbody.innerHTML = '';
+            
+            const sortedPlayers = Object.values(players).sort((a, b) => b.rating - a.rating);
+            
+            sortedPlayers.forEach(player => {
+                const winRate = player.games > 0 ? ((player.wins + player.draws * 0.5) / player.games * 100).toFixed(1) + '%' : '0%';
+                
+                const row = tbody.insertRow();
+                
+                // Create cells securely using createElement
+                const nameCell = row.insertCell();
+                const nameSpan = document.createElement('span');
+                nameSpan.className = 'player-name';
+                nameSpan.textContent = player.name;
+                nameSpan.onclick = () => showPlayerView(player.name);
+                nameCell.appendChild(nameSpan);
+                
+                const eloCell = row.insertCell();
+                eloCell.textContent = player.rating;
+                
+                const glickoCell = row.insertCell();
+                glickoCell.textContent = `${player.glicko_rating}±${player.glicko_deviation}`;
+                
+                const uscfCell = row.insertCell();
+                uscfCell.textContent = player.uscf_rating;
+                
+                const gamesCell = row.insertCell();
+                gamesCell.textContent = player.games;
+                
+                const winsCell = row.insertCell();
+                winsCell.textContent = player.wins;
+                
+                const drawsCell = row.insertCell();
+                drawsCell.textContent = player.draws;
+                
+                const lossesCell = row.insertCell();
+                lossesCell.textContent = player.losses;
+                
+                const winRateCell = row.insertCell();
+                winRateCell.textContent = winRate;
+            });
+        }
+        
+        // Populate games table
+        function populateGamesTable(filteredGames = null) {
+            const tbody = document.getElementById('games-tbody');
+            tbody.innerHTML = '';
+            
+            const gamesToShow = filteredGames || games.slice().reverse();
+            
+            gamesToShow.forEach(game => {
+                const whiteChangeStr = game.white_change > 0 ? `+${game.white_change}` : `${game.white_change}`;
+                const blackChangeStr = game.black_change > 0 ? `+${game.black_change}` : `${game.black_change}`;
+                const dateStr = game.date || '';
+                
+                const row = tbody.insertRow();
+                
+                // Create cells securely
+                const gameNumCell = row.insertCell();
+                gameNumCell.textContent = game.game_number;
+                
+                const dateCell = row.insertCell();
+                dateCell.textContent = dateStr;
+                
+                const whiteCell = row.insertCell();
+                whiteCell.textContent = `${game.white_player} (${game.white_rating_before} → ${game.white_rating_after}) ${whiteChangeStr}`;
+                
+                const blackCell = row.insertCell();
+                blackCell.textContent = `${game.black_player} (${game.black_rating_before} → ${game.black_rating_after}) ${blackChangeStr}`;
+                
+                const resultCell = row.insertCell();
+                resultCell.textContent = game.result;
+            });
+        }
+        
+        // Sort ratings table
+        function sortRatingsTable(columnIndex) {
+            const tbody = document.getElementById('ratings-tbody');
+            const rows = Array.from(tbody.querySelectorAll('tr'));
+            
+            const ascending = currentSort.table === 'ratings' && currentSort.column === columnIndex ? !currentSort.ascending : true;
+            currentSort = { table: 'ratings', column: columnIndex, ascending: ascending };
+            
+            rows.sort((a, b) => {
+                let aVal = a.cells[columnIndex].textContent.trim();
+                let bVal = b.cells[columnIndex].textContent.trim();
+                
+                // Handle numeric columns
+                if (columnIndex > 0) {
+                    if (columnIndex === 2) { // Glicko-2 column - extract rating before ± symbol
+                        aVal = parseFloat(aVal.split('±')[0]) || 0;
+                        bVal = parseFloat(bVal.split('±')[0]) || 0;
+                    } else {
+                        aVal = parseFloat(aVal.replace('%', '').replace(/[^\d.-]/g, '')) || 0;
+                        bVal = parseFloat(bVal.replace('%', '').replace(/[^\d.-]/g, '')) || 0;
+                    }
+                    return ascending ? aVal - bVal : bVal - aVal;
+                }
+                
+                // Handle text columns
+                return ascending ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
+            });
+            
+            tbody.innerHTML = '';
+            rows.forEach(row => tbody.appendChild(row));
+            
+            updateSortIndicators('ratings', columnIndex, ascending);
+        }
+        
+        // Sort games table
+        function sortGamesTable(columnIndex) {
+            const tbody = document.getElementById('games-tbody');
+            const rows = Array.from(tbody.querySelectorAll('tr'));
+            
+            const ascending = currentSort.table === 'games' && currentSort.column === columnIndex ? !currentSort.ascending : true;
+            currentSort = { table: 'games', column: columnIndex, ascending: ascending };
+            
+            rows.sort((a, b) => {
+                let aVal = a.cells[columnIndex].textContent.trim();
+                let bVal = b.cells[columnIndex].textContent.trim();
+                
+                if (columnIndex === 0) { // Game number column
+                    aVal = parseInt(aVal) || 0;
+                    bVal = parseInt(bVal) || 0;
+                    return ascending ? aVal - bVal : bVal - aVal;
+                } else if (columnIndex === 1) { // Date column
+                    // Handle empty dates by treating them as very old dates for sorting
+                    const aDate = aVal === '' ? '1900-01-01' : aVal;
+                    const bDate = bVal === '' ? '1900-01-01' : bVal;
+                    return ascending ? aDate.localeCompare(bDate) : bDate.localeCompare(aDate);
+                }
+                
+                return ascending ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
+            });
+            
+            tbody.innerHTML = '';
+            rows.forEach(row => tbody.appendChild(row));
+            
+            updateSortIndicators('games', columnIndex, ascending);
+        }
+        
+        // Sort head-to-head table
+        function sortH2HTable(columnIndex) {
+            const tbody = document.getElementById('h2h-tbody');
+            const rows = Array.from(tbody.querySelectorAll('tr'));
+            
+            const ascending = currentSort.table === 'h2h' && currentSort.column === columnIndex ? !currentSort.ascending : true;
+            currentSort = { table: 'h2h', column: columnIndex, ascending: ascending };
+            
+            rows.sort((a, b) => {
+                let aVal = a.cells[columnIndex].textContent.trim();
+                let bVal = b.cells[columnIndex].textContent.trim();
+                
+                if (columnIndex === 0) { // Opponent name column (text)
+                    return ascending ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
+                } else if (columnIndex === 5) { // Score column (fraction like "5.5/10")
+                    const aParts = aVal.split('/');
+                    const bParts = bVal.split('/');
+                    const aScore = aParts.length === 2 ? parseFloat(aParts[0]) / parseFloat(aParts[1]) : 0;
+                    const bScore = bParts.length === 2 ? parseFloat(bParts[0]) / parseFloat(bParts[1]) : 0;
+                    return ascending ? aScore - bScore : bScore - aScore;
+                } else { // Numeric columns (Games, Wins, Draws, Losses)
+                    const aNum = parseInt(aVal) || 0;
+                    const bNum = parseInt(bVal) || 0;
+                    return ascending ? aNum - bNum : bNum - aNum;
+                }
+            });
+            
+            tbody.innerHTML = '';
+            rows.forEach(row => tbody.appendChild(row));
+            
+            updateSortIndicators('h2h', columnIndex, ascending);
+        }
+        
+        // Update sort indicators
+        function updateSortIndicators(table, columnIndex, ascending) {
+            let tableId;
+            if (table === 'ratings') {
+                tableId = 'ratings-table';
+            } else if (table === 'games') {
+                tableId = 'games-table';
+            } else if (table === 'h2h') {
+                tableId = 'h2h-table';
+            }
+            
+            const indicators = document.querySelectorAll(`#${tableId} .sort-indicator`);
+            
+            indicators.forEach((indicator, index) => {
+                if (index === columnIndex) {
+                    indicator.textContent = ascending ? '↑' : '↓';
+                } else {
+                    indicator.textContent = '';
+                }
+            });
+        }
+        
+        // Apply filters to games table
+        function applyFilters() {
+            const playerFilter = document.getElementById('player-filter').value.toLowerCase();
+            const resultFilter = document.getElementById('result-filter').value;
+            
+            let filteredGames = games.slice().reverse();
+            
+            if (playerFilter) {
+                filteredGames = filteredGames.filter(game => 
+                    game.white_player.toLowerCase().includes(playerFilter) || 
+                    game.black_player.toLowerCase().includes(playerFilter)
+                );
+            }
+            
+            if (resultFilter) {
+                filteredGames = filteredGames.filter(game => game.result === resultFilter);
+            }
+            
+            populateGamesTable(filteredGames);
+        }
+        
+        // Clear filters
+        function clearFilters() {
+            document.getElementById('player-filter').value = '';
+            document.getElementById('result-filter').value = '';
+            populateGamesTable();
+        }
+        
+        // Global variable to store current chart instance
+        let currentChart = null;
+        
+        // Create rating history chart
+        function createRatingChart(playerName) {
+            const player = players[playerName];
+            if (!player || !player.rating_history || player.rating_history.length === 0) {
+                return;
+            }
+            
+            // Destroy existing chart if it exists
+            if (currentChart) {
+                currentChart.destroy();
+            }
+            
+            const ctx = document.getElementById('rating-chart').getContext('2d');
+            const history = player.rating_history;
+            
+            // Prepare data for chart
+            const labels = history.map(h => h.date || `Game ${h.game}`);
+            const eloData = history.map(h => h.elo);
+            const glicko2Data = history.map(h => h.glicko2);
+            const uscfData = history.map(h => h.uscf);
+            
+            currentChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'ELO',
+                        data: eloData,
+                        borderColor: 'rgb(75, 192, 192)',
+                        backgroundColor: 'rgba(75, 192, 192, 0.1)',
+                        tension: 0.1,
+                        fill: false
+                    }, {
+                        label: 'Glicko-2',
+                        data: glicko2Data,
+                        borderColor: 'rgb(255, 99, 132)',
+                        backgroundColor: 'rgba(255, 99, 132, 0.1)',
+                        tension: 0.1,
+                        fill: false
+                    }, {
+                        label: 'USCF',
+                        data: uscfData,
+                        borderColor: 'rgb(54, 162, 235)',
+                        backgroundColor: 'rgba(54, 162, 235, 0.1)',
+                        tension: 0.1,
+                        fill: false
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: `Rating History - ${playerName}`
+                        },
+                        legend: {
+                            display: true,
+                            position: 'top'
+                        }
+                    },
+                    scales: {
+                        x: {
+                            display: true,
+                            title: {
+                                display: true,
+                                text: 'Games'
+                            },
+                            ticks: {
+                                maxTicksLimit: 10
+                            }
+                        },
+                        y: {
+                            display: true,
+                            title: {
+                                display: true,
+                                text: 'Rating'
+                            },
+                            min: Math.min(...eloData, ...glicko2Data, ...uscfData) - 50,
+                            max: Math.max(...eloData, ...glicko2Data, ...uscfData) + 50
+                        }
+                    },
+                    interaction: {
+                        intersect: false,
+                        mode: 'index'
+                    }
+                }
+            });
+        }
+        
+        // Show player detail view
+        function showPlayerView(playerName) {
+            const player = players[playerName];
+            if (!player) return;
+            
+            document.getElementById('main-view').classList.add('hidden');
+            document.getElementById('player-view').classList.remove('hidden');
+            
+            document.getElementById('player-title').textContent = playerName;
+            
+            const winRate = player.games > 0 ? ((player.wins + player.draws * 0.5) / player.games * 100).toFixed(1) + '%' : '0%';
+            
+            // Create player stats securely
+            const playerStatsDiv = document.getElementById('player-stats');
+            playerStatsDiv.innerHTML = ''; // Clear existing content
+            
+            const ratingP = document.createElement('p');
+            ratingP.innerHTML = '<strong>Current Rating:</strong> ';
+            ratingP.appendChild(document.createTextNode(player.rating));
+            playerStatsDiv.appendChild(ratingP);
+            
+            const gamesP = document.createElement('p');
+            gamesP.innerHTML = '<strong>Games Played:</strong> ';
+            gamesP.appendChild(document.createTextNode(player.games));
+            playerStatsDiv.appendChild(gamesP);
+            
+            const recordP = document.createElement('p');
+            recordP.innerHTML = '<strong>Record:</strong> ';
+            recordP.appendChild(document.createTextNode(`${player.wins}W - ${player.draws}D - ${player.losses}L`));
+            playerStatsDiv.appendChild(recordP);
+            
+            const winRateP = document.createElement('p');
+            winRateP.innerHTML = '<strong>Win Rate:</strong> ';
+            winRateP.appendChild(document.createTextNode(winRate));
+            playerStatsDiv.appendChild(winRateP);
+            
+            // Create head-to-head table securely
+            const tbody = document.getElementById('h2h-tbody');
+            tbody.innerHTML = '';
+            
+            const opponents = Object.keys(player.opponents).sort();
+            opponents.forEach(opponentName => {
+                const record = player.opponents[opponentName];
+                const score = record.wins + record.draws * 0.5;
+                const scoreText = `${score}/${record.games}`;
+                
+                const row = tbody.insertRow();
+                
+                const opponentCell = row.insertCell();
+                opponentCell.textContent = opponentName;
+                
+                const gamesCell = row.insertCell();
+                gamesCell.textContent = record.games;
+                
+                const winsCell = row.insertCell();
+                winsCell.textContent = record.wins;
+                
+                const drawsCell = row.insertCell();
+                drawsCell.textContent = record.draws;
+                
+                const lossesCell = row.insertCell();
+                lossesCell.textContent = record.losses;
+                
+                const scoreCell = row.insertCell();
+                scoreCell.textContent = scoreText;
+            });
+            
+            // Populate current ratings section with three-column layout
+            const currentRatingsDiv = document.getElementById('current-ratings');
+            currentRatingsDiv.innerHTML = '';
+            
+            // Create grid container
+            const ratingsGrid = document.createElement('div');
+            ratingsGrid.className = 'ratings-grid';
+            
+            // Current ratings column
+            const currentColumn = document.createElement('div');
+            currentColumn.className = 'rating-column';
+            const currentHeader = document.createElement('h4');
+            currentHeader.textContent = 'Current';
+            currentColumn.appendChild(currentHeader);
+            
+            const eloCurrentDiv = document.createElement('div');
+            eloCurrentDiv.className = 'rating-value';
+            eloCurrentDiv.innerHTML = '<strong><a href="https://en.wikipedia.org/wiki/Elo_rating_system" target="_blank" rel="noopener">ELO</a>:</strong> ' + player.rating;
+            currentColumn.appendChild(eloCurrentDiv);
+            
+            const glickoCurrentDiv = document.createElement('div');
+            glickoCurrentDiv.className = 'rating-value';
+            glickoCurrentDiv.innerHTML = '<strong><a href="http://www.glicko.net/glicko/glicko2.pdf" target="_blank" rel="noopener">Glicko-2</a>:</strong> ' + player.glicko_rating + '±' + player.glicko_deviation;
+            currentColumn.appendChild(glickoCurrentDiv);
+            
+            const uscfCurrentDiv = document.createElement('div');
+            uscfCurrentDiv.className = 'rating-value';
+            uscfCurrentDiv.innerHTML = '<strong><a href="https://new.uschess.org/sites/default/files/media/documents/the-us-chess-rating-system-revised-september-2020.pdf" target="_blank" rel="noopener">USCF</a>:</strong> ' + player.uscf_rating;
+            currentColumn.appendChild(uscfCurrentDiv);
+            
+            // Highest ratings column
+            const highestColumn = document.createElement('div');
+            highestColumn.className = 'rating-column';
+            const highestHeader = document.createElement('h4');
+            highestHeader.textContent = 'Highest';
+            highestColumn.appendChild(highestHeader);
+            
+            const eloHighestDiv = document.createElement('div');
+            eloHighestDiv.className = 'rating-value';
+            eloHighestDiv.innerHTML = '<strong>ELO:</strong> ' + player.highest_elo;
+            highestColumn.appendChild(eloHighestDiv);
+            
+            const glickoHighestDiv = document.createElement('div');
+            glickoHighestDiv.className = 'rating-value';
+            glickoHighestDiv.innerHTML = '<strong>Glicko-2:</strong> ' + player.highest_glicko;
+            highestColumn.appendChild(glickoHighestDiv);
+            
+            const uscfHighestDiv = document.createElement('div');
+            uscfHighestDiv.className = 'rating-value';
+            uscfHighestDiv.innerHTML = '<strong>USCF:</strong> ' + player.highest_uscf;
+            highestColumn.appendChild(uscfHighestDiv);
+            
+            // Lowest ratings column
+            const lowestColumn = document.createElement('div');
+            lowestColumn.className = 'rating-column';
+            const lowestHeader = document.createElement('h4');
+            lowestHeader.textContent = 'Lowest';
+            lowestColumn.appendChild(lowestHeader);
+            
+            const eloLowestDiv = document.createElement('div');
+            eloLowestDiv.className = 'rating-value';
+            eloLowestDiv.innerHTML = '<strong>ELO:</strong> ' + player.lowest_elo;
+            lowestColumn.appendChild(eloLowestDiv);
+            
+            const glickoLowestDiv = document.createElement('div');
+            glickoLowestDiv.className = 'rating-value';
+            glickoLowestDiv.innerHTML = '<strong>Glicko-2:</strong> ' + player.lowest_glicko;
+            lowestColumn.appendChild(glickoLowestDiv);
+            
+            const uscfLowestDiv = document.createElement('div');
+            uscfLowestDiv.className = 'rating-value';
+            uscfLowestDiv.innerHTML = '<strong>USCF:</strong> ' + player.lowest_uscf;
+            lowestColumn.appendChild(uscfLowestDiv);
+            
+            // Add columns to grid
+            ratingsGrid.appendChild(currentColumn);
+            ratingsGrid.appendChild(highestColumn);
+            ratingsGrid.appendChild(lowestColumn);
+            
+            // Add grid to container
+            currentRatingsDiv.appendChild(ratingsGrid);
+            
+            // Populate biggest wins section
+            const biggestWinsDiv = document.getElementById('biggest-wins');
+            biggestWinsDiv.innerHTML = '';
+            
+            if (player.biggest_wins && player.biggest_wins.length > 0) {
+                player.biggest_wins.forEach((win, index) => {
+                    const winDiv = document.createElement('div');
+                    winDiv.style.marginBottom = '10px';
+                    winDiv.innerHTML = `
+                        <strong>${index + 1}. vs ${win.opponent}</strong><br>
+                        Rating difference: +${win.rating_diff} (${win.own_rating} vs ${win.opponent_rating})<br>
+                        Game #${win.game_number}${win.date ? ', ' + win.date : ''}
+                    `;
+                    biggestWinsDiv.appendChild(winDiv);
+                });
+            } else {
+                biggestWinsDiv.innerHTML = '<p>No significant wins recorded yet.</p>';
+            }
+            
+            // Populate biggest upsets section
+            const biggestUpsetsDiv = document.getElementById('biggest-upsets');
+            biggestUpsetsDiv.innerHTML = '';
+            
+            if (player.biggest_upsets && player.biggest_upsets.length > 0) {
+                player.biggest_upsets.forEach((upset, index) => {
+                    const upsetDiv = document.createElement('div');
+                    upsetDiv.style.marginBottom = '10px';
+                    upsetDiv.innerHTML = `
+                        <strong>${index + 1}. Lost to ${upset.opponent}</strong><br>
+                        Rating difference: -${upset.rating_diff} (${upset.own_rating} vs ${upset.opponent_rating})<br>
+                        Game #${upset.game_number}${upset.date ? ', ' + upset.date : ''}
+                    `;
+                    biggestUpsetsDiv.appendChild(upsetDiv);
+                });
+            } else {
+                biggestUpsetsDiv.innerHTML = '<p>No major upsets recorded.</p>';
+            }
+            
+            // Create the rating chart after populating the table
+            createRatingChart(playerName);
+        }
+        
+        // Show main view
+        function showMainView() {
+            document.getElementById('player-view').classList.add('hidden');
+            document.getElementById('main-view').classList.remove('hidden');
+        }
+        
+        // Initialize the application
+        window.addEventListener('DOMContentLoaded', function() {
+            populateRatingsTable();
+            populateGamesTable();
+        });
+    </script>
+</body>
+</html>
