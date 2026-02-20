@@ -165,9 +165,9 @@ Chris C. - Bodhi N. 1-0 20260205
 Isaac H. - Carson G. 0-1 20260205
 Lucas B. - Justin L. 1-0 20260205
 Nick H. - Lowen C. 1-0 20260205
-Zach P. Tristan G. 1-0 20260205
+Zach P. - Tristan G. 1-0 20260205
 Carson G. - Chris C. 0-1 20260205
-Bodhi N. Isaac H. 1-0 20260205
+Bodhi N. - Isaac H. 1-0 20260205
 Nick H. - Lucas B. 1-0 20260205
 Justin L. - Zach P. 1-0 20260205
 Lowen C. - Tristan G. 0-1 20260205
@@ -176,3 +176,30 @@ Tristan G. - Chris C. 0-1 20260205
 Justin L. - Bodhi N. 0-1 20260205
 Isaac H. - Lucas B. 0.5-0.5 20260205
 Lowen C. - Zach P. 0-1 20260205
+Marco W. - Zach P. 1-0 20260218
+Chris C. - Giacomo P. 1-0 20260218
+Carson G. - Sebastian S. 1-0 20260218
+Bodhi N. - Isaac H. 1-0 20260218
+Nick H. - Lucas B. 1-0 20260218
+Sam M. - Lowen C. 0.5-0.5 20260218
+Justin L. - Cherie D. 1-0 20260218
+Bodhi N. - Marco W. 0-1 20260218
+Justin L. - Carson G. 0-1 20260218
+Chris C. - Sam M. 1-0 20260218
+Lowen C. - Nick H. 0-1 20260218
+Isaac H. - Zach P. 0-1 20260218
+Giacomo P. - Lucas B. 0-1 20260218
+Cherie D. - Sebastian S. 0-1 20260218
+Carson G. - Marco W. 0-1 20260218
+Nick H. - Chris C. 1-0 20260218
+Zach P. - Sebastian S. 1-0 20260218
+Lucas B. - Lowen C. 0.5-0.5 20260218
+Sam M. - Cherie D. 1-0 20260218
+Giacomo P. - Isaac H. 0.5-0.5 20260218
+Marco W. - Nick H. 0-1 20260218
+Zach P. - Chris C. 0-1 20260218
+Carson G. - Bodhi N. 0-1 20260218
+Lucas B. - Sam M. 0.5-0.5 20260218
+Sebastian S. - Justin L. 0-1 20260218
+Lowen C. - Isaac H. 0-1 20260218
+Cherie D. - Giacomo P. 0-1 20260218
