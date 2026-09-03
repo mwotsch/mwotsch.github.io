@@ -271,7 +271,7 @@ Troy S. - Tim T. 0-1 20260902
 Isaac H. - Sam M. 0.5-0.5 20260902
 Ian G. - Carson G. 1-0 20260902
 Sebastian S. - Ari M. 0-1 20260902
-Kupa K. - Andrew M. 1-0 20260902
+Kuba K. - Andrew M. 1-0 20260902
 Jeremy R. - Mikey K. 1-0 20260902
 Sawyer S. - Michael L. 1-0 20260902
 Eric T. - Bodhi N. 0.5-0.5 20260902
@@ -280,5 +280,5 @@ Marco W. - Ian G. 1-0 20260902
 Ari M. - Sam M. 0-1 20260902
 Isaac H. - Sebastian S. 1-0 20260902
 Carson G. - Jeremy R. 0-1 20260902
-Sawyer S. - Kupa K. 0-1 20260902
+Sawyer S. - Kuba K. 0-1 20260902
 Mikey K. - Andrew M. 0.5-0.5 20260902
