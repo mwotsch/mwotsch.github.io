@@ -236,19 +236,43 @@ class StreakAndColorTest(unittest.TestCase):
 
 
 class GenerateHtmlTest(unittest.TestCase):
-    def test_embeds_tournaments_and_section(self):
+    def setUp(self):
         import os, tempfile
         rs = system_with(['A - B 1-0 20260101'])
-        with tempfile.TemporaryDirectory() as d:
-            out = os.path.join(d, 'out.html')
-            self.assertTrue(rs.generate_html(out))
-            html = open(out).read()
-        self.assertIn('let tournaments = [{"date": "Jan 1, 2026"', html)
-        self.assertIn('<h2>Tournaments</h2>', html)
-        self.assertIn('id="tournaments-container"', html)
-        self.assertIn("'MMed', 'Solk', 'Cum', 'CumOpp'", html)
-        self.assertIn('"tournament_stats": {"played": 1, "wins": 1', html)
-        self.assertIn('id="tournament-results"', html)
+        self.dir = tempfile.TemporaryDirectory()
+        self.assertTrue(rs.generate_html(self.dir.name))
+        self.pages = {name: open(os.path.join(self.dir.name, name)).read()
+                      for name in ('index.html', 'tournaments.html', 'games.html')}
+
+    def tearDown(self):
+        self.dir.cleanup()
+
+    def test_each_page_embeds_only_its_own_data(self):
+        index, tournaments, games = (self.pages[p] for p in ('index.html', 'tournaments.html', 'games.html'))
+        self.assertIn('let players = {"A": {"name": "A"', index)
+        self.assertIn('let tournaments = [];', index)
+        self.assertIn('let games = [];', index)
+        self.assertIn('let tournaments = [{"date": "Jan 1, 2026"', tournaments)
+        self.assertIn('let players = {};', tournaments)
+        self.assertIn('let games = [{"game_number": 1', games)
+        self.assertIn('let players = {};', games)
+
+    def test_each_page_has_its_section_and_nav(self):
+        self.assertIn('<h2>Player Ratings</h2>', self.pages['index.html'])
+        self.assertIn('id="player-view"', self.pages['index.html'])
+        self.assertIn('id="tournaments-container"', self.pages['tournaments.html'])
+        self.assertIn('id="games-table"', self.pages['games.html'])
+        self.assertNotIn('id="games-table"', self.pages['index.html'])
+        for name, label in (('index.html', 'Ratings'), ('tournaments.html', 'Tournaments'), ('games.html', 'Games')):
+            self.assertIn(f'<a href="{name}" class="active">{label}</a>', self.pages[name])
+            self.assertIn('<a href="games.html"', self.pages[name])
+
+    def test_index_opens_profile_from_url_only_for_known_players(self):
+        index = self.pages['index.html']
+        self.assertIn("new URLSearchParams(window.location.search).get('player')", index)
+        self.assertIn("Object.prototype.hasOwnProperty.call(players, name)", index)
+        self.assertIn("'MMed', 'Solk', 'Cum', 'CumOpp'", self.pages['tournaments.html'])
+        self.assertIn('"tournament_stats": {"played": 1, "wins": 1', index)
 
 
 if __name__ == '__main__':

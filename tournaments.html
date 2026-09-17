@@ -1,0 +1,903 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OU Chess Club Ratings</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        h1, h2 {
+            color: #333;
+            text-align: center;
+        }
+        
+        .section {
+            margin: 30px 0;
+        }
+        
+        .site-nav {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin: 10px 0 20px;
+        }
+        
+        .site-nav a {
+            padding: 8px 20px;
+            border-radius: 4px;
+            color: #2196F3;
+            text-decoration: none;
+            font-weight: bold;
+        }
+        
+        .site-nav a:hover {
+            background-color: #e3f2fd;
+        }
+        
+        .site-nav a.active {
+            background-color: #4CAF50;
+            color: white;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+        
+        th, td {
+            border: 1px solid #ddd;
+            padding: 12px;
+            text-align: left;
+        }
+        
+        th {
+            background-color: #4CAF50;
+            color: white;
+            cursor: pointer;
+            user-select: none;
+        }
+        
+        th:hover {
+            background-color: #45a049;
+        }
+        
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        
+        tr:hover {
+            background-color: #f5f5f5;
+        }
+        
+        .player-name {
+            cursor: pointer;
+            color: #2196F3;
+            text-decoration: underline;
+        }
+        
+        .player-name:hover {
+            color: #0c7cd5;
+        }
+        
+        .filter-container {
+            margin: 20px 0;
+            display: flex;
+            gap: 20px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        
+        .filter-container label {
+            font-weight: bold;
+        }
+        
+        .filter-container input, .filter-container select {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        
+        .filter-container button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        
+        .filter-container button:hover {
+            background-color: #45a049;
+        }
+        
+        .hidden {
+            display: none;
+        }
+        
+        .tournament {
+            margin: 10px 0;
+        }
+        
+        .tournament summary {
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 1.1em;
+            padding: 10px;
+            background-color: #f0f0f0;
+            border-radius: 4px;
+        }
+        
+        .crosstable th {
+            cursor: default;
+        }
+        
+        .crosstable .no-game {
+            color: #999;
+            text-align: center;
+        }
+        
+        .crosstable .bye {
+            font-style: italic;
+        }
+        
+        .crosstable .tiebreak {
+            color: #666;
+        }
+        
+        #tournament-results th {
+            cursor: default;
+        }
+        
+        .sort-indicator {
+            margin-left: 5px;
+        }
+        
+        .stats-summary {
+            background-color: #f0f8ff;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+        
+        .chart-container {
+            background-color: white;
+            padding: 20px;
+            border-radius: 5px;
+            margin: 20px 0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .chart-container canvas {
+            max-height: 400px;
+        }
+        
+        .stats-summary a {
+            color: #2196F3;
+            text-decoration: none;
+        }
+        
+        .stats-summary a:hover {
+            color: #0c7cd5;
+            text-decoration: underline;
+        }
+        
+        .ratings-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 20px;
+            margin: 15px 0;
+        }
+        
+        .rating-column {
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            background-color: #f9f9f9;
+        }
+        
+        .rating-column h4 {
+            margin: 0 0 10px 0;
+            color: #333;
+            font-size: 14px;
+            font-weight: bold;
+        }
+        
+        .rating-value {
+            font-weight: bold;
+            margin: 5px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>OU Chess Club Ratings</h1>
+        <nav class="site-nav"><a href="index.html">Ratings</a><a href="tournaments.html" class="active">Tournaments</a><a href="games.html">Games</a></nav>
+        
+            <div class="section">
+                <h2>Tournaments</h2>
+                <div id="tournaments-container"></div>
+            </div>
+    </div>
+
+    <script>
+        // Embedded data from Python
+        let players = {};
+        let games = [];
+        let tournaments = [{"date": "Sep 16, 2026", "date_raw": "20260916", "rounds": 4, "games": 23, "players": 13, "standings": [{"name": "Marco W.", "points": 4.0, "wins": 4, "draws": 0, "losses": 0, "rounds": [{"opponent": "Nick H.", "color": "W", "score": 1.0}, {"opponent": "Carson G.", "color": "B", "score": 1.0}, {"opponent": "Eric T.", "color": "W", "score": 1.0}, {"opponent": "Tim T.", "color": "B", "score": 1.0}], "median": 4.5, "solkoff": 9.5, "cumulative": 10.0, "cumulative_opp": 27.0}, {"name": "Eric T.", "points": 3.0, "wins": 3, "draws": 0, "losses": 1, "rounds": [{"opponent": "Aiden V.", "color": "W", "score": 1.0}, {"opponent": "Andrew M.", "color": "B", "score": 1.0}, {"opponent": "Marco W.", "color": "B", "score": 0.0}, {"opponent": "Nick H.", "color": "B", "score": 1.0}], "median": 3.0, "solkoff": 7.0, "cumulative": 8.0, "cumulative_opp": 16.0}, {"name": "Chris C.", "points": 3.0, "wins": 3, "draws": 0, "losses": 1, "rounds": [{"opponent": "Ricky T.", "color": "W", "score": 1.0}, {"opponent": "Tim T.", "color": "B", "score": 0.0}, {"opponent": "Andrew M.", "color": "W", "score": 1.0}, {"opponent": "Carson G.", "color": "B", "score": 1.0}], "median": 3.0, "solkoff": 5.5, "cumulative": 7.0, "cumulative_opp": 15.0}, {"name": "Tim T.", "points": 2.5, "wins": 2, "draws": 1, "losses": 1, "rounds": [{"opponent": "Isaac H.", "color": "B", "score": 1.0}, {"opponent": "Chris C.", "color": "W", "score": 1.0}, {"opponent": "Ian G.", "color": "B", "score": 0.5}, {"opponent": "Marco W.", "color": "W", "score": 0.0}], "median": 4.5, "solkoff": 8.5, "cumulative": 8.0, "cumulative_opp": 21.0}, {"name": "Carson G.", "points": 2.0, "wins": 2, "draws": 0, "losses": 2, "rounds": [{"opponent": "Ian G.", "color": "B", "score": 1.0}, {"opponent": "Marco W.", "color": "W", "score": 0.0}, {"opponent": "Kuba K.", "color": "B", "score": 1.0}, {"opponent": "Chris C.", "color": "W", "score": 0.0}], "median": 5.0, "solkoff": 10.5, "cumulative": 6.0, "cumulative_opp": 25.0}, {"name": "Nick H.", "points": 2.0, "wins": 2, "draws": 0, "losses": 2, "rounds": [{"opponent": "Marco W.", "color": "B", "score": 0.0}, {"opponent": "Ricky T.", "color": "B", "score": 1.0}, {"opponent": "Isaac H.", "color": "W", "score": 1.0}, {"opponent": "Eric T.", "color": "W", "score": 0.0}], "median": 3.0, "solkoff": 7.0, "cumulative": 5.0, "cumulative_opp": 18.0}, {"name": "Kuba K.", "points": 2.0, "wins": 2, "draws": 0, "losses": 1, "rounds": [null, {"opponent": "Aiden V.", "color": "B", "score": 1.0}, {"opponent": "Carson G.", "color": "W", "score": 0.0}, {"opponent": "Isaac H.", "color": "W", "score": 1.0}], "median": 0.0, "solkoff": 2.0, "cumulative": 4.0, "cumulative_opp": 6.0}, {"name": "Ari M.", "points": 2.0, "wins": 2, "draws": 0, "losses": 1, "rounds": [null, {"opponent": "Ian G.", "color": "W", "score": 0.0}, {"opponent": "Ricky T.", "color": "B", "score": 1.0}, {"opponent": "Aiden V.", "color": "W", "score": 1.0}], "median": 0.0, "solkoff": 1.5, "cumulative": 3.0, "cumulative_opp": 4.0}, {"name": "Ian G.", "points": 1.5, "wins": 1, "draws": 1, "losses": 2, "rounds": [{"opponent": "Carson G.", "color": "W", "score": 0.0}, {"opponent": "Ari M.", "color": "B", "score": 1.0}, {"opponent": "Tim T.", "color": "W", "score": 0.5}, {"opponent": "Andrew M.", "color": "W", "score": 0.0}], "median": 4.0, "solkoff": 7.5, "cumulative": 4.0, "cumulative_opp": 18.0}, {"name": "Andrew M.", "points": 1.0, "wins": 1, "draws": 0, "losses": 2, "rounds": [null, {"opponent": "Eric T.", "color": "W", "score": 0.0}, {"opponent": "Chris C.", "color": "B", "score": 0.0}, {"opponent": "Ian G.", "color": "B", "score": 1.0}], "median": 3.0, "solkoff": 7.5, "cumulative": 1.0, "cumulative_opp": 19.0}, {"name": "Aiden V.", "points": 0.0, "wins": 0, "draws": 0, "losses": 3, "rounds": [{"opponent": "Eric T.", "color": "B", "score": 0.0}, {"opponent": "Kuba K.", "color": "W", "score": 0.0}, null, {"opponent": "Ari M.", "color": "B", "score": 0.0}], "median": 2.0, "solkoff": 7.0, "cumulative": 0.0, "cumulative_opp": 15.0}, {"name": "Ricky T.", "points": 0.0, "wins": 0, "draws": 0, "losses": 3, "rounds": [{"opponent": "Chris C.", "color": "B", "score": 0.0}, {"opponent": "Nick H.", "color": "W", "score": 0.0}, {"opponent": "Ari M.", "color": "W", "score": 0.0}, null], "median": 2.0, "solkoff": 7.0, "cumulative": 0.0, "cumulative_opp": 15.0}, {"name": "Isaac H.", "points": 0.0, "wins": 0, "draws": 0, "losses": 3, "rounds": [{"opponent": "Tim T.", "color": "W", "score": 0.0}, null, {"opponent": "Nick H.", "color": "B", "score": 0.0}, {"opponent": "Kuba K.", "color": "B", "score": 0.0}], "median": 2.0, "solkoff": 6.5, "cumulative": 0.0, "cumulative_opp": 17.0}]}, {"date": "Sep 2, 2026", "date_raw": "20260902", "rounds": 4, "games": 35, "players": 19, "standings": [{"name": "Tim T.", "points": 3.5, "wins": 3, "draws": 1, "losses": 0, "rounds": [{"opponent": "Sam M.", "color": "B", "score": 0.5}, {"opponent": "Jeremy R.", "color": "W", "score": 1.0}, {"opponent": "Troy S.", "color": "B", "score": 1.0}, {"opponent": "Nick H.", "color": "W", "score": 1.0}], "median": 4.5, "solkoff": 8.5, "cumulative": 8.0, "cumulative_opp": 20.0}, {"name": "Bodhi N.", "points": 3.5, "wins": 3, "draws": 1, "losses": 0, "rounds": [{"opponent": "Andrew M.", "color": "B", "score": 1.0}, {"opponent": "Sebastian S.", "color": "W", "score": 1.0}, {"opponent": "Marco W.", "color": "W", "score": 1.0}, {"opponent": "Eric T.", "color": "B", "score": 0.5}], "median": 4.0, "solkoff": 7.5, "cumulative": 9.5, "cumulative_opp": 21.0}, {"name": "Eric T.", "points": 3.0, "wins": 2, "draws": 2, "losses": 0, "rounds": [{"opponent": "Jeremy R.", "color": "B", "score": 1.0}, {"opponent": "Ian G.", "color": "W", "score": 1.0}, {"opponent": "Nick H.", "color": "B", "score": 0.5}, {"opponent": "Bodhi N.", "color": "W", "score": 0.5}], "median": 4.5, "solkoff": 10.0, "cumulative": 8.5, "cumulative_opp": 26.5}, {"name": "Sam M.", "points": 3.0, "wins": 2, "draws": 2, "losses": 0, "rounds": [{"opponent": "Tim T.", "color": "W", "score": 0.5}, {"opponent": "Michael L.", "color": "W", "score": 1.0}, {"opponent": "Isaac H.", "color": "B", "score": 0.5}, {"opponent": "Ari M.", "color": "B", "score": 1.0}], "median": 4.5, "solkoff": 8.0, "cumulative": 7.0, "cumulative_opp": 20.0}, {"name": "Marco W.", "points": 3.0, "wins": 3, "draws": 0, "losses": 1, "rounds": [{"opponent": "Ricky T.", "color": "B", "score": 1.0}, {"opponent": "Ari M.", "color": "W", "score": 1.0}, {"opponent": "Bodhi N.", "color": "B", "score": 0.0}, {"opponent": "Ian G.", "color": "W", "score": 1.0}], "median": 4.0, "solkoff": 8.5, "cumulative": 8.0, "cumulative_opp": 22.5}, {"name": "Nick H.", "points": 2.5, "wins": 2, "draws": 1, "losses": 1, "rounds": [{"opponent": "Sawyer S.", "color": "B", "score": 1.0}, {"opponent": "Isaac H.", "color": "W", "score": 1.0}, {"opponent": "Eric T.", "color": "W", "score": 0.5}, {"opponent": "Tim T.", "color": "B", "score": 0.0}], "median": 5.5, "solkoff": 10.0, "cumulative": 8.0, "cumulative_opp": 24.5}, {"name": "Isaac H.", "points": 2.5, "wins": 2, "draws": 1, "losses": 1, "rounds": [{"opponent": "Troy S.", "color": "B", "score": 1.0}, {"opponent": "Nick H.", "color": "B", "score": 0.0}, {"opponent": "Sam M.", "color": "W", "score": 0.5}, {"opponent": "Sebastian S.", "color": "W", "score": 1.0}], "median": 3.5, "solkoff": 7.5, "cumulative": 6.0, "cumulative_opp": 21.0}, {"name": "Ari M.", "points": 2.0, "wins": 2, "draws": 0, "losses": 2, "rounds": [{"opponent": "Carson G.", "color": "W", "score": 1.0}, {"opponent": "Marco W.", "color": "B", "score": 0.0}, {"opponent": "Sebastian S.", "color": "B", "score": 1.0}, {"opponent": "Sam M.", "color": "W", "score": 0.0}], "median": 4.0, "solkoff": 8.0, "cumulative": 6.0, "cumulative_opp": 22.0}, {"name": "Jeremy R.", "points": 2.0, "wins": 2, "draws": 0, "losses": 2, "rounds": [{"opponent": "Eric T.", "color": "W", "score": 0.0}, {"opponent": "Tim T.", "color": "B", "score": 0.0}, {"opponent": "Mikey K.", "color": "W", "score": 1.0}, {"opponent": "Carson G.", "color": "B", "score": 1.0}], "median": 4.0, "solkoff": 8.0, "cumulative": 3.0, "cumulative_opp": 20.0}, {"name": "Ian G.", "points": 2.0, "wins": 2, "draws": 0, "losses": 2, "rounds": [{"opponent": "Mikey K.", "color": "W", "score": 1.0}, {"opponent": "Eric T.", "color": "B", "score": 0.0}, {"opponent": "Carson G.", "color": "W", "score": 1.0}, {"opponent": "Marco W.", "color": "B", "score": 0.0}], "median": 4.0, "solkoff": 7.5, "cumulative": 6.0, "cumulative_opp": 20.0}, {"name": "Kuba K.", "points": 2.0, "wins": 2, "draws": 0, "losses": 0, "rounds": [null, null, {"opponent": "Andrew M.", "color": "W", "score": 1.0}, {"opponent": "Sawyer S.", "color": "B", "score": 1.0}], "median": 0, "solkoff": 1.5, "cumulative": 3.0, "cumulative_opp": 2.5}, {"name": "Sebastian S.", "points": 1.0, "wins": 1, "draws": 0, "losses": 3, "rounds": [{"opponent": "Michael L.", "color": "B", "score": 1.0}, {"opponent": "Bodhi N.", "color": "B", "score": 0.0}, {"opponent": "Ari M.", "color": "W", "score": 0.0}, {"opponent": "Isaac H.", "color": "B", "score": 0.0}], "median": 4.5, "solkoff": 8.0, "cumulative": 4.0, "cumulative_opp": 21.5}, {"name": "Carson G.", "points": 1.0, "wins": 1, "draws": 0, "losses": 3, "rounds": [{"opponent": "Ari M.", "color": "B", "score": 0.0}, {"opponent": "Sawyer S.", "color": "W", "score": 1.0}, {"opponent": "Ian G.", "color": "B", "score": 0.0}, {"opponent": "Jeremy R.", "color": "W", "score": 0.0}], "median": 4.0, "solkoff": 7.0, "cumulative": 3.0, "cumulative_opp": 17.0}, {"name": "Sawyer S.", "points": 1.0, "wins": 1, "draws": 0, "losses": 3, "rounds": [{"opponent": "Nick H.", "color": "W", "score": 0.0}, {"opponent": "Carson G.", "color": "B", "score": 0.0}, {"opponent": "Michael L.", "color": "W", "score": 1.0}, {"opponent": "Kuba K.", "color": "W", "score": 0.0}], "median": 3.0, "solkoff": 5.5, "cumulative": 2.0, "cumulative_opp": 14.0}, {"name": "Troy S.", "points": 1.0, "wins": 1, "draws": 0, "losses": 2, "rounds": [{"opponent": "Isaac H.", "color": "W", "score": 0.0}, {"opponent": "Andrew M.", "color": "B", "score": 1.0}, {"opponent": "Tim T.", "color": "W", "score": 0.0}, null], "median": 2.5, "solkoff": 6.5, "cumulative": 2.0, "cumulative_opp": 14.5}, {"name": "Ricky T.", "points": 1.0, "wins": 1, "draws": 0, "losses": 1, "rounds": [{"opponent": "Marco W.", "color": "W", "score": 0.0}, {"opponent": "Mikey K.", "color": "B", "score": 1.0}, null, null], "median": 0, "solkoff": 3.5, "cumulative": 1.0, "cumulative_opp": 8.5}, {"name": "Andrew M.", "points": 0.5, "wins": 0, "draws": 1, "losses": 3, "rounds": [{"opponent": "Bodhi N.", "color": "W", "score": 0.0}, {"opponent": "Troy S.", "color": "W", "score": 0.0}, {"opponent": "Kuba K.", "color": "B", "score": 0.0}, {"opponent": "Mikey K.", "color": "B", "score": 0.5}], "median": 3.0, "solkoff": 7.0, "cumulative": 0.5, "cumulative_opp": 15.0}, {"name": "Mikey K.", "points": 0.5, "wins": 0, "draws": 1, "losses": 3, "rounds": [{"opponent": "Ian G.", "color": "B", "score": 0.0}, {"opponent": "Ricky T.", "color": "W", "score": 0.0}, {"opponent": "Jeremy R.", "color": "B", "score": 0.0}, {"opponent": "Andrew M.", "color": "W", "score": 0.5}], "median": 3.0, "solkoff": 5.5, "cumulative": 0.5, "cumulative_opp": 10.5}, {"name": "Michael L.", "points": 0.0, "wins": 0, "draws": 0, "losses": 3, "rounds": [{"opponent": "Sebastian S.", "color": "W", "score": 0.0}, {"opponent": "Sam M.", "color": "B", "score": 0.0}, {"opponent": "Sawyer S.", "color": "B", "score": 0.0}, null], "median": 1.0, "solkoff": 5.0, "cumulative": 0.0, "cumulative_opp": 13.0}]}, {"date": "Apr 15, 2026", "date_raw": "20260415", "rounds": 4, "games": 16, "players": 8, "standings": [{"name": "Chris C.", "points": 4.0, "wins": 4, "draws": 0, "losses": 0, "rounds": [{"opponent": "Nick H.", "color": "W", "score": 1.0}, {"opponent": "Eric T.", "color": "W", "score": 1.0}, {"opponent": "Bodhi N.", "color": "B", "score": 1.0}, {"opponent": "Carson G.", "color": "W", "score": 1.0}], "median": 4.0, "solkoff": 8.0, "cumulative": 10.0, "cumulative_opp": 22.0}, {"name": "Eric T.", "points": 3.0, "wins": 3, "draws": 0, "losses": 1, "rounds": [{"opponent": "Sebastian S.", "color": "W", "score": 1.0}, {"opponent": "Chris C.", "color": "B", "score": 0.0}, {"opponent": "Tristan G.", "color": "B", "score": 1.0}, {"opponent": "Bodhi N.", "color": "W", "score": 1.0}], "median": 4.0, "solkoff": 9.0, "cumulative": 7.0, "cumulative_opp": 24.0}, {"name": "Bodhi N.", "points": 2.0, "wins": 2, "draws": 0, "losses": 2, "rounds": [{"opponent": "Isaac H.", "color": "W", "score": 1.0}, {"opponent": "Tristan G.", "color": "B", "score": 1.0}, {"opponent": "Chris C.", "color": "W", "score": 0.0}, {"opponent": "Eric T.", "color": "B", "score": 0.0}], "median": 4.0, "solkoff": 9.0, "cumulative": 7.0, "cumulative_opp": 22.0}, {"name": "Carson G.", "points": 2.0, "wins": 2, "draws": 0, "losses": 2, "rounds": [{"opponent": "Tristan G.", "color": "W", "score": 0.0}, {"opponent": "Isaac H.", "color": "B", "score": 1.0}, {"opponent": "Nick H.", "color": "W", "score": 1.0}, {"opponent": "Chris C.", "color": "B", "score": 0.0}], "median": 2.0, "solkoff": 7.0, "cumulative": 5.0, "cumulative_opp": 18.0}, {"name": "Sebastian S.", "points": 2.0, "wins": 2, "draws": 0, "losses": 2, "rounds": [{"opponent": "Eric T.", "color": "B", "score": 0.0}, {"opponent": "Nick H.", "color": "B", "score": 0.0}, {"opponent": "Isaac H.", "color": "W", "score": 1.0}, {"opponent": "Tristan G.", "color": "W", "score": 1.0}], "median": 2.0, "solkoff": 6.0, "cumulative": 3.0, "cumulative_opp": 15.0}, {"name": "Tristan G.", "points": 1.0, "wins": 1, "draws": 0, "losses": 3, "rounds": [{"opponent": "Carson G.", "color": "B", "score": 1.0}, {"opponent": "Bodhi N.", "color": "W", "score": 0.0}, {"opponent": "Eric T.", "color": "W", "score": 0.0}, {"opponent": "Sebastian S.", "color": "B", "score": 0.0}], "median": 4.0, "solkoff": 9.0, "cumulative": 4.0, "cumulative_opp": 22.0}, {"name": "Nick H.", "points": 1.0, "wins": 1, "draws": 0, "losses": 3, "rounds": [{"opponent": "Chris C.", "color": "B", "score": 0.0}, {"opponent": "Sebastian S.", "color": "W", "score": 1.0}, {"opponent": "Carson G.", "color": "B", "score": 0.0}, {"opponent": "Isaac H.", "color": "W", "score": 0.0}], "median": 4.0, "solkoff": 9.0, "cumulative": 3.0, "cumulative_opp": 19.0}, {"name": "Isaac H.", "points": 1.0, "wins": 1, "draws": 0, "losses": 3, "rounds": [{"opponent": "Bodhi N.", "color": "B", "score": 0.0}, {"opponent": "Carson G.", "color": "W", "score": 0.0}, {"opponent": "Sebastian S.", "color": "B", "score": 0.0}, {"opponent": "Nick H.", "color": "B", "score": 1.0}], "median": 4.0, "solkoff": 7.0, "cumulative": 1.0, "cumulative_opp": 18.0}]}, {"date": "Apr 1, 2026", "date_raw": "20260401", "rounds": 4, "games": 16, "players": 8, "standings": [{"name": "Carson G.", "points": 3.0, "wins": 3, "draws": 0, "losses": 1, "rounds": [{"opponent": "Isaac H.", "color": "W", "score": 1.0}, {"opponent": "Lucas B.", "color": "B", "score": 1.0}, {"opponent": "Bodhi N.", "color": "W", "score": 0.0}, {"opponent": "Nick H.", "color": "B", "score": 1.0}], "median": 4.0, "solkoff": 9.0, "cumulative": 8.0, "cumulative_opp": 22.0}, {"name": "Bodhi N.", "points": 3.0, "wins": 3, "draws": 0, "losses": 1, "rounds": [{"opponent": "Ben K.", "color": "W", "score": 1.0}, {"opponent": "Sam M.", "color": "B", "score": 1.0}, {"opponent": "Carson G.", "color": "B", "score": 1.0}, {"opponent": "Chris C.", "color": "W", "score": 0.0}], "median": 4.0, "solkoff": 7.0, "cumulative": 9.0, "cumulative_opp": 18.0}, {"name": "Chris C.", "points": 3.0, "wins": 3, "draws": 0, "losses": 1, "rounds": [{"opponent": "Sam M.", "color": "W", "score": 0.0}, {"opponent": "Ben K.", "color": "B", "score": 1.0}, {"opponent": "Lucas B.", "color": "W", "score": 1.0}, {"opponent": "Bodhi N.", "color": "B", "score": 1.0}], "median": 3.0, "solkoff": 6.0, "cumulative": 6.0, "cumulative_opp": 18.0}, {"name": "Lucas B.", "points": 2.0, "wins": 2, "draws": 0, "losses": 2, "rounds": [{"opponent": "Nick H.", "color": "B", "score": 1.0}, {"opponent": "Carson G.", "color": "W", "score": 0.0}, {"opponent": "Chris C.", "color": "B", "score": 0.0}, {"opponent": "Ben K.", "color": "B", "score": 1.0}], "median": 5.0, "solkoff": 8.0, "cumulative": 5.0, "cumulative_opp": 19.0}, {"name": "Nick H.", "points": 2.0, "wins": 2, "draws": 0, "losses": 2, "rounds": [{"opponent": "Lucas B.", "color": "W", "score": 0.0}, {"opponent": "Isaac H.", "color": "B", "score": 1.0}, {"opponent": "Sam M.", "color": "B", "score": 1.0}, {"opponent": "Carson G.", "color": "W", "score": 0.0}], "median": 4.0, "solkoff": 8.0, "cumulative": 5.0, "cumulative_opp": 20.0}, {"name": "Isaac H.", "points": 2.0, "wins": 2, "draws": 0, "losses": 2, "rounds": [{"opponent": "Carson G.", "color": "B", "score": 0.0}, {"opponent": "Nick H.", "color": "W", "score": 0.0}, {"opponent": "Ben K.", "color": "W", "score": 1.0}, {"opponent": "Sam M.", "color": "B", "score": 1.0}], "median": 3.0, "solkoff": 6.0, "cumulative": 3.0, "cumulative_opp": 17.0}, {"name": "Sam M.", "points": 1.0, "wins": 1, "draws": 0, "losses": 3, "rounds": [{"opponent": "Chris C.", "color": "B", "score": 1.0}, {"opponent": "Bodhi N.", "color": "W", "score": 0.0}, {"opponent": "Nick H.", "color": "W", "score": 0.0}, {"opponent": "Isaac H.", "color": "W", "score": 0.0}], "median": 5.0, "solkoff": 10.0, "cumulative": 4.0, "cumulative_opp": 23.0}, {"name": "Ben K.", "points": 0.0, "wins": 0, "draws": 0, "losses": 4, "rounds": [{"opponent": "Bodhi N.", "color": "B", "score": 0.0}, {"opponent": "Chris C.", "color": "W", "score": 0.0}, {"opponent": "Isaac H.", "color": "B", "score": 0.0}, {"opponent": "Lucas B.", "color": "W", "score": 0.0}], "median": 5.0, "solkoff": 10.0, "cumulative": 0.0, "cumulative_opp": 23.0}]}, {"date": "Mar 18, 2026", "date_raw": "20260318", "rounds": 4, "games": 12, "players": 7, "standings": [{"name": "Marco W.", "points": 3.5, "wins": 3, "draws": 1, "losses": 0, "rounds": [{"opponent": "Carson G.", "color": "B", "score": 1.0}, {"opponent": "Bodhi N.", "color": "W", "score": 0.5}, {"opponent": "Chris C.", "color": "B", "score": 1.0}, {"opponent": "Thien V.", "color": "W", "score": 1.0}], "median": 4.5, "solkoff": 7.5, "cumulative": 8.5, "cumulative_opp": 18.5}, {"name": "Chris C.", "points": 3.0, "wins": 3, "draws": 0, "losses": 1, "rounds": [{"opponent": "Nick H.", "color": "W", "score": 1.0}, {"opponent": "Thien V.", "color": "B", "score": 1.0}, {"opponent": "Marco W.", "color": "W", "score": 0.0}, {"opponent": "Bodhi N.", "color": "W", "score": 1.0}], "median": 3.5, "solkoff": 7.0, "cumulative": 8.0, "cumulative_opp": 17.0}, {"name": "Bodhi N.", "points": 2.5, "wins": 2, "draws": 1, "losses": 1, "rounds": [{"opponent": "Lucas B.", "color": "W", "score": 1.0}, {"opponent": "Marco W.", "color": "B", "score": 0.5}, {"opponent": "Thien V.", "color": "W", "score": 1.0}, {"opponent": "Chris C.", "color": "B", "score": 0.0}], "median": 3.0, "solkoff": 6.5, "cumulative": 7.5, "cumulative_opp": 16.5}, {"name": "Carson G.", "points": 2.0, "wins": 2, "draws": 0, "losses": 1, "rounds": [{"opponent": "Marco W.", "color": "W", "score": 0.0}, {"opponent": "Nick H.", "color": "B", "score": 1.0}, {"opponent": "Lucas B.", "color": "W", "score": 1.0}, null], "median": 1.0, "solkoff": 4.5, "cumulative": 3.0, "cumulative_opp": 9.5}, {"name": "Nick H.", "points": 1.0, "wins": 1, "draws": 0, "losses": 2, "rounds": [{"opponent": "Chris C.", "color": "B", "score": 0.0}, {"opponent": "Carson G.", "color": "W", "score": 0.0}, null, {"opponent": "Lucas B.", "color": "B", "score": 1.0}], "median": 2.0, "solkoff": 5.0, "cumulative": 1.0, "cumulative_opp": 11.0}, {"name": "Thien V.", "points": 0.0, "wins": 0, "draws": 0, "losses": 3, "rounds": [null, {"opponent": "Chris C.", "color": "W", "score": 0.0}, {"opponent": "Bodhi N.", "color": "B", "score": 0.0}, {"opponent": "Marco W.", "color": "B", "score": 0.0}], "median": 3.0, "solkoff": 9.0, "cumulative": 0.0, "cumulative_opp": 24.0}, {"name": "Lucas B.", "points": 0.0, "wins": 0, "draws": 0, "losses": 3, "rounds": [{"opponent": "Bodhi N.", "color": "B", "score": 0.0}, null, {"opponent": "Carson G.", "color": "B", "score": 0.0}, {"opponent": "Nick H.", "color": "W", "score": 0.0}], "median": 2.0, "solkoff": 5.5, "cumulative": 0.0, "cumulative_opp": 11.5}]}, {"date": "Feb 18, 2026", "date_raw": "20260218", "rounds": 4, "games": 27, "players": 14, "standings": [{"name": "Nick H.", "points": 4.0, "wins": 4, "draws": 0, "losses": 0, "rounds": [{"opponent": "Lucas B.", "color": "W", "score": 1.0}, {"opponent": "Lowen C.", "color": "B", "score": 1.0}, {"opponent": "Chris C.", "color": "W", "score": 1.0}, {"opponent": "Marco W.", "color": "B", "score": 1.0}], "median": 5.0, "solkoff": 9.0, "cumulative": 10.0, "cumulative_opp": 24.5}, {"name": "Marco W.", "points": 3.0, "wins": 3, "draws": 0, "losses": 1, "rounds": [{"opponent": "Zach P.", "color": "W", "score": 1.0}, {"opponent": "Bodhi N.", "color": "B", "score": 1.0}, {"opponent": "Carson G.", "color": "B", "score": 1.0}, {"opponent": "Nick H.", "color": "W", "score": 0.0}], "median": 4.0, "solkoff": 10.0, "cumulative": 9.0, "cumulative_opp": 26.0}, {"name": "Chris C.", "points": 3.0, "wins": 3, "draws": 0, "losses": 1, "rounds": [{"opponent": "Giacomo P.", "color": "W", "score": 1.0}, {"opponent": "Sam M.", "color": "W", "score": 1.0}, {"opponent": "Nick H.", "color": "B", "score": 0.0}, {"opponent": "Zach P.", "color": "B", "score": 1.0}], "median": 4.0, "solkoff": 9.5, "cumulative": 8.0, "cumulative_opp": 21.5}, {"name": "Zach P.", "points": 2.0, "wins": 2, "draws": 0, "losses": 2, "rounds": [{"opponent": "Marco W.", "color": "B", "score": 0.0}, {"opponent": "Isaac H.", "color": "B", "score": 1.0}, {"opponent": "Sebastian S.", "color": "W", "score": 1.0}, {"opponent": "Chris C.", "color": "W", "score": 0.0}], "median": 4.5, "solkoff": 8.5, "cumulative": 5.0, "cumulative_opp": 22.0}, {"name": "Carson G.", "points": 2.0, "wins": 2, "draws": 0, "losses": 2, "rounds": [{"opponent": "Sebastian S.", "color": "W", "score": 1.0}, {"opponent": "Justin L.", "color": "B", "score": 1.0}, {"opponent": "Marco W.", "color": "W", "score": 0.0}, {"opponent": "Bodhi N.", "color": "W", "score": 0.0}], "median": 4.0, "solkoff": 8.0, "cumulative": 7.0, "cumulative_opp": 20.0}, {"name": "Lucas B.", "points": 2.0, "wins": 1, "draws": 2, "losses": 1, "rounds": [{"opponent": "Nick H.", "color": "B", "score": 0.0}, {"opponent": "Giacomo P.", "color": "B", "score": 1.0}, {"opponent": "Lowen C.", "color": "W", "score": 0.5}, {"opponent": "Sam M.", "color": "W", "score": 0.5}], "median": 3.5, "solkoff": 8.5, "cumulative": 4.5, "cumulative_opp": 19.5}, {"name": "Sam M.", "points": 2.0, "wins": 1, "draws": 2, "losses": 1, "rounds": [{"opponent": "Lowen C.", "color": "W", "score": 0.5}, {"opponent": "Chris C.", "color": "B", "score": 0.0}, {"opponent": "Cherie D.", "color": "W", "score": 1.0}, {"opponent": "Lucas B.", "color": "B", "score": 0.5}], "median": 3.0, "solkoff": 6.0, "cumulative": 4.5, "cumulative_opp": 15.5}, {"name": "Bodhi N.", "points": 2.0, "wins": 2, "draws": 0, "losses": 1, "rounds": [{"opponent": "Isaac H.", "color": "W", "score": 1.0}, {"opponent": "Marco W.", "color": "W", "score": 0.0}, null, {"opponent": "Carson G.", "color": "B", "score": 1.0}], "median": 2.0, "solkoff": 6.5, "cumulative": 4.0, "cumulative_opp": 18.0}, {"name": "Justin L.", "points": 2.0, "wins": 2, "draws": 0, "losses": 1, "rounds": [{"opponent": "Cherie D.", "color": "W", "score": 1.0}, {"opponent": "Carson G.", "color": "W", "score": 0.0}, null, {"opponent": "Sebastian S.", "color": "B", "score": 1.0}], "median": 1.0, "solkoff": 3.0, "cumulative": 4.0, "cumulative_opp": 10.0}, {"name": "Giacomo P.", "points": 1.5, "wins": 1, "draws": 1, "losses": 2, "rounds": [{"opponent": "Chris C.", "color": "B", "score": 0.0}, {"opponent": "Lucas B.", "color": "W", "score": 0.0}, {"opponent": "Isaac H.", "color": "W", "score": 0.5}, {"opponent": "Cherie D.", "color": "B", "score": 1.0}], "median": 3.5, "solkoff": 6.5, "cumulative": 2.0, "cumulative_opp": 14.5}, {"name": "Isaac H.", "points": 1.5, "wins": 1, "draws": 1, "losses": 2, "rounds": [{"opponent": "Bodhi N.", "color": "B", "score": 0.0}, {"opponent": "Zach P.", "color": "W", "score": 0.0}, {"opponent": "Giacomo P.", "color": "B", "score": 0.5}, {"opponent": "Lowen C.", "color": "B", "score": 1.0}], "median": 3.5, "solkoff": 6.5, "cumulative": 2.0, "cumulative_opp": 14.0}, {"name": "Lowen C.", "points": 1.0, "wins": 0, "draws": 2, "losses": 2, "rounds": [{"opponent": "Sam M.", "color": "B", "score": 0.5}, {"opponent": "Nick H.", "color": "W", "score": 0.0}, {"opponent": "Lucas B.", "color": "B", "score": 0.5}, {"opponent": "Isaac H.", "color": "W", "score": 0.0}], "median": 4.0, "solkoff": 9.5, "cumulative": 3.0, "cumulative_opp": 21.0}, {"name": "Sebastian S.", "points": 1.0, "wins": 1, "draws": 0, "losses": 3, "rounds": [{"opponent": "Carson G.", "color": "B", "score": 0.0}, {"opponent": "Cherie D.", "color": "B", "score": 1.0}, {"opponent": "Zach P.", "color": "B", "score": 0.0}, {"opponent": "Justin L.", "color": "W", "score": 0.0}], "median": 4.0, "solkoff": 6.0, "cumulative": 3.0, "cumulative_opp": 16.0}, {"name": "Cherie D.", "points": 0.0, "wins": 0, "draws": 0, "losses": 4, "rounds": [{"opponent": "Justin L.", "color": "B", "score": 0.0}, {"opponent": "Sebastian S.", "color": "W", "score": 0.0}, {"opponent": "Sam M.", "color": "B", "score": 0.0}, {"opponent": "Giacomo P.", "color": "W", "score": 0.0}], "median": 3.5, "solkoff": 6.5, "cumulative": 0.0, "cumulative_opp": 13.5}]}, {"date": "Feb 4, 2026", "date_raw": "20260204", "rounds": 4, "games": 20, "players": 10, "standings": [{"name": "Chris C.", "points": 4.0, "wins": 4, "draws": 0, "losses": 0, "rounds": [{"opponent": "Zach P.", "color": "W", "score": 1.0}, {"opponent": "Bodhi N.", "color": "W", "score": 1.0}, {"opponent": "Carson G.", "color": "B", "score": 1.0}, {"opponent": "Tristan G.", "color": "B", "score": 1.0}], "median": 5.0, "solkoff": 9.0, "cumulative": 10.0, "cumulative_opp": 21.0}, {"name": "Bodhi N.", "points": 3.0, "wins": 3, "draws": 0, "losses": 1, "rounds": [{"opponent": "Lucas B.", "color": "W", "score": 1.0}, {"opponent": "Chris C.", "color": "B", "score": 0.0}, {"opponent": "Isaac H.", "color": "W", "score": 1.0}, {"opponent": "Justin L.", "color": "B", "score": 1.0}], "median": 3.5, "solkoff": 9.0, "cumulative": 7.0, "cumulative_opp": 24.0}, {"name": "Carson G.", "points": 3.0, "wins": 3, "draws": 0, "losses": 1, "rounds": [{"opponent": "Lowen C.", "color": "W", "score": 1.0}, {"opponent": "Isaac H.", "color": "B", "score": 1.0}, {"opponent": "Chris C.", "color": "W", "score": 0.0}, {"opponent": "Nick H.", "color": "W", "score": 1.0}], "median": 3.5, "solkoff": 7.5, "cumulative": 8.0, "cumulative_opp": 19.5}, {"name": "Justin L.", "points": 2.0, "wins": 2, "draws": 0, "losses": 2, "rounds": [{"opponent": "Nick H.", "color": "W", "score": 1.0}, {"opponent": "Lucas B.", "color": "B", "score": 0.0}, {"opponent": "Zach P.", "color": "W", "score": 1.0}, {"opponent": "Bodhi N.", "color": "W", "score": 0.0}], "median": 4.0, "solkoff": 8.5, "cumulative": 6.0, "cumulative_opp": 19.5}, {"name": "Nick H.", "points": 2.0, "wins": 2, "draws": 0, "losses": 2, "rounds": [{"opponent": "Justin L.", "color": "B", "score": 0.0}, {"opponent": "Lowen C.", "color": "W", "score": 1.0}, {"opponent": "Lucas B.", "color": "W", "score": 1.0}, {"opponent": "Carson G.", "color": "B", "score": 0.0}], "median": 3.5, "solkoff": 6.5, "cumulative": 5.0, "cumulative_opp": 17.5}, {"name": "Zach P.", "points": 2.0, "wins": 2, "draws": 0, "losses": 2, "rounds": [{"opponent": "Chris C.", "color": "B", "score": 0.0}, {"opponent": "Tristan G.", "color": "W", "score": 1.0}, {"opponent": "Justin L.", "color": "B", "score": 0.0}, {"opponent": "Lowen C.", "color": "B", "score": 1.0}], "median": 3.0, "solkoff": 7.0, "cumulative": 4.0, "cumulative_opp": 18.0}, {"name": "Isaac H.", "points": 1.5, "wins": 1, "draws": 1, "losses": 2, "rounds": [{"opponent": "Tristan G.", "color": "B", "score": 1.0}, {"opponent": "Carson G.", "color": "W", "score": 0.0}, {"opponent": "Bodhi N.", "color": "B", "score": 0.0}, {"opponent": "Lucas B.", "color": "W", "score": 0.5}], "median": 4.5, "solkoff": 8.5, "cumulative": 4.5, "cumulative_opp": 20.5}, {"name": "Lucas B.", "points": 1.5, "wins": 1, "draws": 1, "losses": 2, "rounds": [{"opponent": "Bodhi N.", "color": "B", "score": 0.0}, {"opponent": "Justin L.", "color": "W", "score": 1.0}, {"opponent": "Nick H.", "color": "B", "score": 0.0}, {"opponent": "Isaac H.", "color": "B", "score": 0.5}], "median": 4.0, "solkoff": 8.5, "cumulative": 3.5, "cumulative_opp": 22.5}, {"name": "Tristan G.", "points": 1.0, "wins": 1, "draws": 0, "losses": 3, "rounds": [{"opponent": "Isaac H.", "color": "W", "score": 0.0}, {"opponent": "Zach P.", "color": "B", "score": 0.0}, {"opponent": "Lowen C.", "color": "B", "score": 1.0}, {"opponent": "Chris C.", "color": "W", "score": 0.0}], "median": 3.5, "solkoff": 7.5, "cumulative": 2.0, "cumulative_opp": 18.5}, {"name": "Lowen C.", "points": 0.0, "wins": 0, "draws": 0, "losses": 4, "rounds": [{"opponent": "Carson G.", "color": "B", "score": 0.0}, {"opponent": "Nick H.", "color": "B", "score": 0.0}, {"opponent": "Tristan G.", "color": "W", "score": 0.0}, {"opponent": "Zach P.", "color": "W", "score": 0.0}], "median": 4.0, "solkoff": 8.0, "cumulative": 0.0, "cumulative_opp": 19.0}]}, {"date": "Jan 22, 2026", "date_raw": "20260122", "rounds": 4, "games": 23, "players": 12, "standings": [{"name": "Philip R.", "points": 3.5, "wins": 3, "draws": 1, "losses": 0, "rounds": [{"opponent": "Sam M.", "color": "B", "score": 1.0}, {"opponent": "Chris C.", "color": "W", "score": 0.5}, {"opponent": "Nick H.", "color": "B", "score": 1.0}, {"opponent": "Bodhi N.", "color": "W", "score": 1.0}], "median": 6.0, "solkoff": 11.5, "cumulative": 8.5, "cumulative_opp": 27.5}, {"name": "Chris C.", "points": 3.5, "wins": 3, "draws": 1, "losses": 0, "rounds": [{"opponent": "James H.", "color": "W", "score": 1.0}, {"opponent": "Philip R.", "color": "B", "score": 0.5}, {"opponent": "Isaac H.", "color": "W", "score": 1.0}, {"opponent": "Cherie D.", "color": "W", "score": 1.0}], "median": 3.0, "solkoff": 7.5, "cumulative": 8.5, "cumulative_opp": 18.5}, {"name": "Bodhi N.", "points": 3.0, "wins": 3, "draws": 0, "losses": 1, "rounds": [{"opponent": "Tristan G.", "color": "W", "score": 1.0}, {"opponent": "Isaac H.", "color": "B", "score": 1.0}, {"opponent": "Lucas B.", "color": "W", "score": 1.0}, {"opponent": "Philip R.", "color": "B", "score": 0.0}], "median": 4.0, "solkoff": 8.5, "cumulative": 9.0, "cumulative_opp": 22.5}, {"name": "Sam M.", "points": 3.0, "wins": 3, "draws": 0, "losses": 1, "rounds": [{"opponent": "Philip R.", "color": "W", "score": 0.0}, {"opponent": "Ian G.", "color": "B", "score": 1.0}, {"opponent": "James H.", "color": "W", "score": 1.0}, {"opponent": "Lucas B.", "color": "B", "score": 1.0}], "median": 3.0, "solkoff": 7.5, "cumulative": 6.0, "cumulative_opp": 19.5}, {"name": "Isaac H.", "points": 2.0, "wins": 2, "draws": 0, "losses": 2, "rounds": [{"opponent": "Nick H.", "color": "B", "score": 1.0}, {"opponent": "Bodhi N.", "color": "W", "score": 0.0}, {"opponent": "Chris C.", "color": "B", "score": 0.0}, {"opponent": "Tristan G.", "color": "B", "score": 1.0}], "median": 5.0, "solkoff": 9.5, "cumulative": 5.0, "cumulative_opp": 23.5}, {"name": "Lucas B.", "points": 2.0, "wins": 2, "draws": 0, "losses": 2, "rounds": [{"opponent": "Ashton D.", "color": "B", "score": 1.0}, {"opponent": "Cherie D.", "color": "W", "score": 1.0}, {"opponent": "Bodhi N.", "color": "B", "score": 0.0}, {"opponent": "Sam M.", "color": "W", "score": 0.0}], "median": 4.0, "solkoff": 7.0, "cumulative": 7.0, "cumulative_opp": 17.0}, {"name": "Nick H.", "points": 2.0, "wins": 2, "draws": 0, "losses": 2, "rounds": [{"opponent": "Isaac H.", "color": "W", "score": 0.0}, {"opponent": "Ashton D.", "color": "B", "score": 1.0}, {"opponent": "Philip R.", "color": "W", "score": 0.0}, {"opponent": "James H.", "color": "B", "score": 1.0}], "median": 3.0, "solkoff": 6.5, "cumulative": 4.0, "cumulative_opp": 16.5}, {"name": "James H.", "points": 1.0, "wins": 1, "draws": 0, "losses": 3, "rounds": [{"opponent": "Chris C.", "color": "B", "score": 0.0}, {"opponent": "Tristan G.", "color": "W", "score": 1.0}, {"opponent": "Sam M.", "color": "B", "score": 0.0}, {"opponent": "Nick H.", "color": "W", "score": 0.0}], "median": 5.0, "solkoff": 9.5, "cumulative": 3.0, "cumulative_opp": 20.5}, {"name": "Tristan G.", "points": 1.0, "wins": 1, "draws": 0, "losses": 3, "rounds": [{"opponent": "Bodhi N.", "color": "B", "score": 0.0}, {"opponent": "James H.", "color": "B", "score": 0.0}, {"opponent": "Ian G.", "color": "W", "score": 1.0}, {"opponent": "Isaac H.", "color": "W", "score": 0.0}], "median": 3.0, "solkoff": 7.0, "cumulative": 2.0, "cumulative_opp": 18.0}, {"name": "Cherie D.", "points": 1.0, "wins": 1, "draws": 0, "losses": 2, "rounds": [null, {"opponent": "Lucas B.", "color": "B", "score": 0.0}, {"opponent": "Ashton D.", "color": "W", "score": 1.0}, {"opponent": "Chris C.", "color": "B", "score": 0.0}], "median": 2.0, "solkoff": 5.5, "cumulative": 2.0, "cumulative_opp": 15.5}, {"name": "Ian G.", "points": 1.0, "wins": 1, "draws": 0, "losses": 2, "rounds": [null, {"opponent": "Sam M.", "color": "W", "score": 0.0}, {"opponent": "Tristan G.", "color": "B", "score": 0.0}, {"opponent": "Ashton D.", "color": "W", "score": 1.0}], "median": 1.0, "solkoff": 4.0, "cumulative": 1.0, "cumulative_opp": 8.0}, {"name": "Ashton D.", "points": 0.0, "wins": 0, "draws": 0, "losses": 4, "rounds": [{"opponent": "Lucas B.", "color": "W", "score": 0.0}, {"opponent": "Nick H.", "color": "W", "score": 0.0}, {"opponent": "Cherie D.", "color": "B", "score": 0.0}, {"opponent": "Ian G.", "color": "B", "score": 0.0}], "median": 3.0, "solkoff": 6.0, "cumulative": 0.0, "cumulative_opp": 14.0}]}, {"date": "Nov 19, 2025", "date_raw": "20251119", "rounds": 4, "games": 19, "players": 11, "standings": [{"name": "Marco W.", "points": 4.0, "wins": 4, "draws": 0, "losses": 0, "rounds": [{"opponent": "Isaac H.", "color": "W", "score": 1.0}, {"opponent": "Carson G.", "color": "B", "score": 1.0}, {"opponent": "Nick H.", "color": "W", "score": 1.0}, {"opponent": "Chris C.", "color": "B", "score": 1.0}], "median": 4.0, "solkoff": 7.0, "cumulative": 10.0, "cumulative_opp": 18.5}, {"name": "Mason K.", "points": 3.0, "wins": 3, "draws": 0, "losses": 0, "rounds": [null, {"opponent": "Luke A.", "color": "B", "score": 1.0}, {"opponent": "Tristan G.", "color": "W", "score": 1.0}, {"opponent": "Eric T.", "color": "B", "score": 1.0}], "median": 1.0, "solkoff": 3.0, "cumulative": 6.0, "cumulative_opp": 7.0}, {"name": "Nick H.", "points": 2.5, "wins": 2, "draws": 1, "losses": 1, "rounds": [{"opponent": "Eric T.", "color": "W", "score": 0.5}, {"opponent": "Tristan G.", "color": "W", "score": 1.0}, {"opponent": "Marco W.", "color": "B", "score": 0.0}, {"opponent": "Carson G.", "color": "B", "score": 1.0}], "median": 4.0, "solkoff": 8.0, "cumulative": 6.0, "cumulative_opp": 22.0}, {"name": "Carson G.", "points": 2.0, "wins": 2, "draws": 0, "losses": 2, "rounds": [{"opponent": "Sebastian S.", "color": "W", "score": 1.0}, {"opponent": "Marco W.", "color": "W", "score": 0.0}, {"opponent": "Cherie D.", "color": "B", "score": 1.0}, {"opponent": "Nick H.", "color": "W", "score": 0.0}], "median": 4.5, "solkoff": 8.5, "cumulative": 6.0, "cumulative_opp": 20.0}, {"name": "Eric T.", "points": 2.0, "wins": 1, "draws": 2, "losses": 1, "rounds": [{"opponent": "Nick H.", "color": "B", "score": 0.5}, {"opponent": "Chris C.", "color": "W", "score": 1.0}, {"opponent": "Isaac H.", "color": "B", "score": 0.5}, {"opponent": "Mason K.", "color": "W", "score": 0.0}], "median": 4.5, "solkoff": 8.0, "cumulative": 6.0, "cumulative_opp": 18.5}, {"name": "Chris C.", "points": 2.0, "wins": 2, "draws": 0, "losses": 2, "rounds": [{"opponent": "Luke A.", "color": "W", "score": 1.0}, {"opponent": "Eric T.", "color": "B", "score": 0.0}, {"opponent": "Sebastian S.", "color": "B", "score": 1.0}, {"opponent": "Marco W.", "color": "W", "score": 0.0}], "median": 4.0, "solkoff": 9.0, "cumulative": 6.0, "cumulative_opp": 21.0}, {"name": "Sebastian S.", "points": 2.0, "wins": 2, "draws": 0, "losses": 2, "rounds": [{"opponent": "Carson G.", "color": "B", "score": 0.0}, {"opponent": "Isaac H.", "color": "B", "score": 1.0}, {"opponent": "Chris C.", "color": "W", "score": 0.0}, {"opponent": "Cherie D.", "color": "W", "score": 1.0}], "median": 2.5, "solkoff": 4.5, "cumulative": 4.0, "cumulative_opp": 12.5}, {"name": "Luke A.", "points": 1.0, "wins": 1, "draws": 0, "losses": 2, "rounds": [{"opponent": "Chris C.", "color": "B", "score": 0.0}, {"opponent": "Mason K.", "color": "W", "score": 0.0}, null, {"opponent": "Tristan G.", "color": "B", "score": 1.0}], "median": 2.0, "solkoff": 5.0, "cumulative": 1.0, "cumulative_opp": 12.0}, {"name": "Isaac H.", "points": 0.5, "wins": 0, "draws": 1, "losses": 2, "rounds": [{"opponent": "Marco W.", "color": "B", "score": 0.0}, {"opponent": "Sebastian S.", "color": "W", "score": 0.0}, {"opponent": "Eric T.", "color": "W", "score": 0.5}, null], "median": 2.0, "solkoff": 8.0, "cumulative": 0.5, "cumulative_opp": 20.0}, {"name": "Tristan G.", "points": 0.0, "wins": 0, "draws": 0, "losses": 3, "rounds": [null, {"opponent": "Nick H.", "color": "B", "score": 0.0}, {"opponent": "Mason K.", "color": "B", "score": 0.0}, {"opponent": "Luke A.", "color": "W", "score": 0.0}], "median": 2.5, "solkoff": 6.5, "cumulative": 0.0, "cumulative_opp": 13.0}, {"name": "Cherie D.", "points": 0.0, "wins": 0, "draws": 0, "losses": 2, "rounds": [null, null, {"opponent": "Carson G.", "color": "W", "score": 0.0}, {"opponent": "Sebastian S.", "color": "B", "score": 0.0}], "median": 0, "solkoff": 4.0, "cumulative": 0.0, "cumulative_opp": 10.0}]}, {"date": "Nov 6, 2025", "date_raw": "20251106", "rounds": 4, "games": 30, "players": 17, "standings": [{"name": "Marco W.", "points": 3.0, "wins": 3, "draws": 0, "losses": 1, "rounds": [{"opponent": "Tristan G.", "color": "W", "score": 1.0}, {"opponent": "Carson G.", "color": "B", "score": 1.0}, {"opponent": "Mason K.", "color": "B", "score": 1.0}, {"opponent": "Eric T.", "color": "W", "score": 0.0}], "median": 6.0, "solkoff": 10.0, "cumulative": 9.0, "cumulative_opp": 23.0}, {"name": "Chris C.", "points": 3.0, "wins": 3, "draws": 0, "losses": 1, "rounds": [{"opponent": "Mitch K.", "color": "W", "score": 1.0}, {"opponent": "Nick H.", "color": "B", "score": 1.0}, {"opponent": "Eric T.", "color": "W", "score": 0.0}, {"opponent": "Isaac H.", "color": "B", "score": 1.0}], "median": 4.0, "solkoff": 8.0, "cumulative": 8.0, "cumulative_opp": 20.0}, {"name": "Mason K.", "points": 3.0, "wins": 3, "draws": 0, "losses": 1, "rounds": [{"opponent": "Dr. S.", "color": "B", "score": 1.0}, {"opponent": "Isaac H.", "color": "W", "score": 1.0}, {"opponent": "Marco W.", "color": "W", "score": 0.0}, {"opponent": "Nick H.", "color": "W", "score": 1.0}], "median": 4.0, "solkoff": 7.0, "cumulative": 8.0, "cumulative_opp": 21.0}, {"name": "Eric T.", "points": 3.0, "wins": 3, "draws": 0, "losses": 0, "rounds": [{"opponent": "Sebastian S.", "color": "W", "score": 1.0}, null, {"opponent": "Chris C.", "color": "B", "score": 1.0}, {"opponent": "Marco W.", "color": "B", "score": 1.0}], "median": 3.0, "solkoff": 8.0, "cumulative": 6.0, "cumulative_opp": 21.0}, {"name": "Carson G.", "points": 3.0, "wins": 3, "draws": 0, "losses": 1, "rounds": [{"opponent": "Thien V.", "color": "B", "score": 1.0}, {"opponent": "Marco W.", "color": "W", "score": 0.0}, {"opponent": "Mitch K.", "color": "B", "score": 1.0}, {"opponent": "Sam M.", "color": "W", "score": 1.0}], "median": 3.0, "solkoff": 7.0, "cumulative": 7.0, "cumulative_opp": 17.0}, {"name": "Nick H.", "points": 2.0, "wins": 2, "draws": 0, "losses": 2, "rounds": [{"opponent": "Sam M.", "color": "B", "score": 1.0}, {"opponent": "Chris C.", "color": "W", "score": 0.0}, {"opponent": "Robert V.", "color": "W", "score": 1.0}, {"opponent": "Mason K.", "color": "B", "score": 0.0}], "median": 5.0, "solkoff": 9.0, "cumulative": 6.0, "cumulative_opp": 23.0}, {"name": "Isaac H.", "points": 2.0, "wins": 2, "draws": 0, "losses": 2, "rounds": [{"opponent": "Robert V.", "color": "W", "score": 1.0}, {"opponent": "Mason K.", "color": "B", "score": 0.0}, {"opponent": "Sebastian S.", "color": "B", "score": 1.0}, {"opponent": "Chris C.", "color": "W", "score": 0.0}], "median": 5.0, "solkoff": 9.0, "cumulative": 6.0, "cumulative_opp": 22.0}, {"name": "Sam M.", "points": 2.0, "wins": 2, "draws": 0, "losses": 2, "rounds": [{"opponent": "Nick H.", "color": "W", "score": 0.0}, {"opponent": "Dr. S.", "color": "B", "score": 1.0}, {"opponent": "Edison F.", "color": "W", "score": 1.0}, {"opponent": "Carson G.", "color": "B", "score": 0.0}], "median": 3.0, "solkoff": 6.0, "cumulative": 5.0, "cumulative_opp": 16.0}, {"name": "Sebastian S.", "points": 2.0, "wins": 2, "draws": 0, "losses": 2, "rounds": [{"opponent": "Eric T.", "color": "B", "score": 0.0}, {"opponent": "Tristan G.", "color": "B", "score": 1.0}, {"opponent": "Isaac H.", "color": "W", "score": 0.0}, {"opponent": "Brock P.", "color": "W", "score": 1.0}], "median": 3.0, "solkoff": 6.0, "cumulative": 4.0, "cumulative_opp": 14.0}, {"name": "Cherie D.", "points": 2.0, "wins": 2, "draws": 0, "losses": 0, "rounds": [null, null, {"opponent": "Brock P.", "color": "B", "score": 1.0}, {"opponent": "Tristan G.", "color": "W", "score": 1.0}], "median": 0, "solkoff": 1.0, "cumulative": 3.0, "cumulative_opp": 2.0}, {"name": "Tristan G.", "points": 1.0, "wins": 1, "draws": 0, "losses": 3, "rounds": [{"opponent": "Marco W.", "color": "B", "score": 0.0}, {"opponent": "Sebastian S.", "color": "W", "score": 0.0}, {"opponent": "Dr. S.", "color": "W", "score": 1.0}, {"opponent": "Cherie D.", "color": "B", "score": 0.0}], "median": 4.0, "solkoff": 7.0, "cumulative": 2.0, "cumulative_opp": 16.0}, {"name": "Mitch K.", "points": 1.0, "wins": 1, "draws": 0, "losses": 2, "rounds": [{"opponent": "Chris C.", "color": "B", "score": 0.0}, {"opponent": "Thien V.", "color": "W", "score": 1.0}, {"opponent": "Carson G.", "color": "W", "score": 0.0}, null], "median": 3.0, "solkoff": 7.0, "cumulative": 2.0, "cumulative_opp": 16.0}, {"name": "Robert V.", "points": 1.0, "wins": 1, "draws": 0, "losses": 2, "rounds": [{"opponent": "Isaac H.", "color": "B", "score": 0.0}, {"opponent": "Brock P.", "color": "W", "score": 1.0}, {"opponent": "Nick H.", "color": "B", "score": 0.0}, null], "median": 2.0, "solkoff": 4.0, "cumulative": 2.0, "cumulative_opp": 12.0}, {"name": "Thien V.", "points": 1.0, "wins": 1, "draws": 0, "losses": 2, "rounds": [{"opponent": "Carson G.", "color": "W", "score": 0.0}, {"opponent": "Mitch K.", "color": "B", "score": 0.0}, null, {"opponent": "Edison F.", "color": "B", "score": 1.0}], "median": 1.0, "solkoff": 5.0, "cumulative": 1.0, "cumulative_opp": 12.0}, {"name": "Edison F.", "points": 1.0, "wins": 1, "draws": 0, "losses": 2, "rounds": [{"opponent": "Brock P.", "color": "B", "score": 1.0}, null, {"opponent": "Sam M.", "color": "B", "score": 0.0}, {"opponent": "Thien V.", "color": "W", "score": 0.0}], "median": 1.0, "solkoff": 3.0, "cumulative": 3.0, "cumulative_opp": 6.0}, {"name": "Brock P.", "points": 0.0, "wins": 0, "draws": 0, "losses": 4, "rounds": [{"opponent": "Edison F.", "color": "W", "score": 0.0}, {"opponent": "Robert V.", "color": "B", "score": 0.0}, {"opponent": "Cherie D.", "color": "W", "score": 0.0}, {"opponent": "Sebastian S.", "color": "B", "score": 0.0}], "median": 3.0, "solkoff": 6.0, "cumulative": 0.0, "cumulative_opp": 12.0}, {"name": "Dr. S.", "points": 0.0, "wins": 0, "draws": 0, "losses": 3, "rounds": [{"opponent": "Mason K.", "color": "W", "score": 0.0}, {"opponent": "Sam M.", "color": "W", "score": 0.0}, {"opponent": "Tristan G.", "color": "B", "score": 0.0}, null], "median": 2.0, "solkoff": 6.0, "cumulative": 0.0, "cumulative_opp": 15.0}]}, {"date": "Oct 22, 2025", "date_raw": "20251022", "rounds": 4, "games": 23, "players": 13, "standings": [{"name": "Marco W.", "points": 4.0, "wins": 4, "draws": 0, "losses": 0, "rounds": [{"opponent": "Quintus S.", "color": "B", "score": 1.0}, {"opponent": "Sebastian S.", "color": "W", "score": 1.0}, {"opponent": "Nick H.", "color": "W", "score": 1.0}, {"opponent": "Chris C.", "color": "B", "score": 1.0}], "median": 3.5, "solkoff": 7.0, "cumulative": 10.0, "cumulative_opp": 22.0}, {"name": "Drew C.", "points": 3.5, "wins": 3, "draws": 1, "losses": 0, "rounds": [{"opponent": "Emaewet J.", "color": "W", "score": 1.0}, {"opponent": "Chris C.", "color": "B", "score": 0.5}, {"opponent": "Dr. S.", "color": "W", "score": 1.0}, {"opponent": "Nick H.", "color": "B", "score": 1.0}], "median": 3.5, "solkoff": 7.0, "cumulative": 8.5, "cumulative_opp": 18.0}, {"name": "Chris C.", "points": 2.5, "wins": 2, "draws": 1, "losses": 1, "rounds": [{"opponent": "Ashton D.", "color": "B", "score": 1.0}, {"opponent": "Drew C.", "color": "W", "score": 0.5}, {"opponent": "Sam M.", "color": "W", "score": 1.0}, {"opponent": "Marco W.", "color": "W", "score": 0.0}], "median": 5.5, "solkoff": 10.5, "cumulative": 7.5, "cumulative_opp": 25.5}, {"name": "Nick H.", "points": 2.0, "wins": 2, "draws": 0, "losses": 2, "rounds": [{"opponent": "Dr. S.", "color": "B", "score": 1.0}, {"opponent": "Isaac H.", "color": "W", "score": 1.0}, {"opponent": "Marco W.", "color": "B", "score": 0.0}, {"opponent": "Drew C.", "color": "W", "score": 0.0}], "median": 5.0, "solkoff": 10.5, "cumulative": 7.0, "cumulative_opp": 23.5}, {"name": "Sam M.", "points": 2.0, "wins": 2, "draws": 0, "losses": 1, "rounds": [null, {"opponent": "Emaewet J.", "color": "B", "score": 1.0}, {"opponent": "Chris C.", "color": "B", "score": 0.0}, {"opponent": "Quintus S.", "color": "W", "score": 1.0}], "median": 1.5, "solkoff": 5.0, "cumulative": 4.0, "cumulative_opp": 12.0}, {"name": "Dr. S.", "points": 1.5, "wins": 1, "draws": 1, "losses": 2, "rounds": [{"opponent": "Nick H.", "color": "W", "score": 0.0}, {"opponent": "Quintus S.", "color": "W", "score": 0.5}, {"opponent": "Drew C.", "color": "B", "score": 0.0}, {"opponent": "Ashton D.", "color": "W", "score": 1.0}], "median": 3.5, "solkoff": 8.0, "cumulative": 2.5, "cumulative_opp": 22.0}, {"name": "Quintus S.", "points": 1.5, "wins": 1, "draws": 1, "losses": 2, "rounds": [{"opponent": "Marco W.", "color": "W", "score": 0.0}, {"opponent": "Dr. S.", "color": "B", "score": 0.5}, {"opponent": "Drew R.", "color": "W", "score": 1.0}, {"opponent": "Sam M.", "color": "B", "score": 0.0}], "median": 3.5, "solkoff": 7.5, "cumulative": 3.5, "cumulative_opp": 16.5}, {"name": "Isaac H.", "points": 1.5, "wins": 1, "draws": 1, "losses": 1, "rounds": [null, {"opponent": "Nick H.", "color": "B", "score": 0.0}, {"opponent": "Sebastian S.", "color": "W", "score": 1.0}, {"opponent": "Mason K.", "color": "W", "score": 0.5}], "median": 1.5, "solkoff": 4.5, "cumulative": 2.5, "cumulative_opp": 13.5}, {"name": "Mason K.", "points": 1.5, "wins": 1, "draws": 1, "losses": 0, "rounds": [null, null, {"opponent": "Ashton D.", "color": "B", "score": 1.0}, {"opponent": "Isaac H.", "color": "B", "score": 0.5}], "median": 0, "solkoff": 2.5, "cumulative": 2.5, "cumulative_opp": 5.5}, {"name": "Ashton D.", "points": 1.0, "wins": 1, "draws": 0, "losses": 3, "rounds": [{"opponent": "Chris C.", "color": "W", "score": 0.0}, {"opponent": "Drew R.", "color": "B", "score": 1.0}, {"opponent": "Mason K.", "color": "W", "score": 0.0}, {"opponent": "Dr. S.", "color": "B", "score": 0.0}], "median": 3.0, "solkoff": 5.5, "cumulative": 3.0, "cumulative_opp": 12.5}, {"name": "Sebastian S.", "points": 1.0, "wins": 1, "draws": 0, "losses": 3, "rounds": [{"opponent": "Drew R.", "color": "B", "score": 1.0}, {"opponent": "Marco W.", "color": "B", "score": 0.0}, {"opponent": "Isaac H.", "color": "B", "score": 0.0}, {"opponent": "Emaewet J.", "color": "W", "score": 0.0}], "median": 2.5, "solkoff": 6.5, "cumulative": 4.0, "cumulative_opp": 13.5}, {"name": "Emaewet J.", "points": 1.0, "wins": 1, "draws": 0, "losses": 2, "rounds": [{"opponent": "Drew C.", "color": "B", "score": 0.0}, {"opponent": "Sam M.", "color": "W", "score": 0.0}, null, {"opponent": "Sebastian S.", "color": "B", "score": 1.0}], "median": 2.0, "solkoff": 6.5, "cumulative": 1.0, "cumulative_opp": 16.5}, {"name": "Drew R.", "points": 0.0, "wins": 0, "draws": 0, "losses": 3, "rounds": [{"opponent": "Sebastian S.", "color": "W", "score": 0.0}, {"opponent": "Ashton D.", "color": "W", "score": 0.0}, {"opponent": "Quintus S.", "color": "B", "score": 0.0}, null], "median": 1.0, "solkoff": 3.5, "cumulative": 0.0, "cumulative_opp": 10.5}]}, {"date": "Oct 9, 2025", "date_raw": "20251009", "rounds": 4, "games": 20, "players": 10, "standings": [{"name": "Marco W.", "points": 4.0, "wins": 4, "draws": 0, "losses": 0, "rounds": [{"opponent": "Nick H.", "color": "W", "score": 1.0}, {"opponent": "Thien V.", "color": "B", "score": 1.0}, {"opponent": "Mason K.", "color": "B", "score": 1.0}, {"opponent": "Mitch K.", "color": "W", "score": 1.0}], "median": 4.0, "solkoff": 8.0, "cumulative": 10.0, "cumulative_opp": 21.0}, {"name": "Mason K.", "points": 3.0, "wins": 3, "draws": 0, "losses": 1, "rounds": [{"opponent": "Chris C.", "color": "W", "score": 1.0}, {"opponent": "Emaewet J.", "color": "B", "score": 1.0}, {"opponent": "Marco W.", "color": "W", "score": 0.0}, {"opponent": "Carson G.", "color": "B", "score": 1.0}], "median": 5.0, "solkoff": 11.0, "cumulative": 8.0, "cumulative_opp": 26.0}, {"name": "Chris C.", "points": 3.0, "wins": 3, "draws": 0, "losses": 1, "rounds": [{"opponent": "Mason K.", "color": "B", "score": 0.0}, {"opponent": "Nick H.", "color": "W", "score": 1.0}, {"opponent": "Emaewet J.", "color": "W", "score": 1.0}, {"opponent": "Cherie D.", "color": "B", "score": 1.0}], "median": 4.0, "solkoff": 7.0, "cumulative": 6.0, "cumulative_opp": 16.0}, {"name": "Nick H.", "points": 2.0, "wins": 2, "draws": 0, "losses": 2, "rounds": [{"opponent": "Marco W.", "color": "B", "score": 0.0}, {"opponent": "Chris C.", "color": "B", "score": 0.0}, {"opponent": "Cherie D.", "color": "W", "score": 1.0}, {"opponent": "Thien V.", "color": "W", "score": 1.0}], "median": 4.0, "solkoff": 8.0, "cumulative": 3.0, "cumulative_opp": 20.0}, {"name": "Emaewet J.", "points": 2.0, "wins": 2, "draws": 0, "losses": 2, "rounds": [{"opponent": "Cherie D.", "color": "B", "score": 1.0}, {"opponent": "Mason K.", "color": "W", "score": 0.0}, {"opponent": "Chris C.", "color": "B", "score": 0.0}, {"opponent": "Sam M.", "color": "W", "score": 1.0}], "median": 4.0, "solkoff": 7.0, "cumulative": 5.0, "cumulative_opp": 17.0}, {"name": "Mitch K.", "points": 2.0, "wins": 2, "draws": 0, "losses": 2, "rounds": [{"opponent": "Carson G.", "color": "W", "score": 1.0}, {"opponent": "Sam M.", "color": "B", "score": 0.0}, {"opponent": "Thien V.", "color": "W", "score": 1.0}, {"opponent": "Marco W.", "color": "B", "score": 0.0}], "median": 3.0, "solkoff": 8.0, "cumulative": 6.0, "cumulative_opp": 22.0}, {"name": "Carson G.", "points": 2.0, "wins": 2, "draws": 0, "losses": 2, "rounds": [{"opponent": "Mitch K.", "color": "B", "score": 0.0}, {"opponent": "Cherie D.", "color": "W", "score": 1.0}, {"opponent": "Sam M.", "color": "B", "score": 1.0}, {"opponent": "Mason K.", "color": "W", "score": 0.0}], "median": 3.0, "solkoff": 6.0, "cumulative": 5.0, "cumulative_opp": 17.0}, {"name": "Thien V.", "points": 1.0, "wins": 1, "draws": 0, "losses": 3, "rounds": [{"opponent": "Sam M.", "color": "W", "score": 1.0}, {"opponent": "Marco W.", "color": "W", "score": 0.0}, {"opponent": "Mitch K.", "color": "B", "score": 0.0}, {"opponent": "Nick H.", "color": "B", "score": 0.0}], "median": 4.0, "solkoff": 9.0, "cumulative": 4.0, "cumulative_opp": 22.0}, {"name": "Sam M.", "points": 1.0, "wins": 1, "draws": 0, "losses": 3, "rounds": [{"opponent": "Thien V.", "color": "B", "score": 0.0}, {"opponent": "Mitch K.", "color": "W", "score": 1.0}, {"opponent": "Carson G.", "color": "W", "score": 0.0}, {"opponent": "Emaewet J.", "color": "B", "score": 0.0}], "median": 4.0, "solkoff": 7.0, "cumulative": 3.0, "cumulative_opp": 20.0}, {"name": "Cherie D.", "points": 0.0, "wins": 0, "draws": 0, "losses": 4, "rounds": [{"opponent": "Emaewet J.", "color": "W", "score": 0.0}, {"opponent": "Carson G.", "color": "B", "score": 0.0}, {"opponent": "Nick H.", "color": "B", "score": 0.0}, {"opponent": "Chris C.", "color": "W", "score": 0.0}], "median": 4.0, "solkoff": 9.0, "cumulative": 0.0, "cumulative_opp": 19.0}]}, {"date": "Sep 24, 2025", "date_raw": "20250924", "rounds": 4, "games": 19, "players": 10, "standings": [{"name": "Marco W.", "points": 3.5, "wins": 3, "draws": 1, "losses": 0, "rounds": [{"opponent": "Thien V.", "color": "B", "score": 1.0}, {"opponent": "Sam M.", "color": "W", "score": 1.0}, {"opponent": "Chris C.", "color": "B", "score": 0.5}, {"opponent": "Eric T.", "color": "W", "score": 1.0}], "median": 5.0, "solkoff": 8.5, "cumulative": 9.0, "cumulative_opp": 23.0}, {"name": "Chris C.", "points": 3.5, "wins": 3, "draws": 1, "losses": 0, "rounds": [{"opponent": "Keagan O.", "color": "W", "score": 1.0}, {"opponent": "Carson G.", "color": "B", "score": 1.0}, {"opponent": "Marco W.", "color": "W", "score": 0.5}, {"opponent": "Sam M.", "color": "B", "score": 1.0}], "median": 4.0, "solkoff": 7.5, "cumulative": 9.0, "cumulative_opp": 17.0}, {"name": "Carson G.", "points": 3.0, "wins": 3, "draws": 0, "losses": 1, "rounds": [{"opponent": "Mitch K.", "color": "B", "score": 1.0}, {"opponent": "Chris C.", "color": "W", "score": 0.0}, {"opponent": "Nick H.", "color": "W", "score": 1.0}, {"opponent": "Thien V.", "color": "B", "score": 1.0}], "median": 4.0, "solkoff": 8.5, "cumulative": 7.0, "cumulative_opp": 20.0}, {"name": "Eric T.", "points": 3.0, "wins": 3, "draws": 0, "losses": 1, "rounds": [{"opponent": "Nick H.", "color": "B", "score": 1.0}, {"opponent": "Mitch K.", "color": "W", "score": 1.0}, {"opponent": "Cherie D.", "color": "W", "score": 1.0}, {"opponent": "Marco W.", "color": "B", "score": 0.0}], "median": 3.0, "solkoff": 6.5, "cumulative": 9.0, "cumulative_opp": 15.0}, {"name": "Mitch K.", "points": 2.0, "wins": 2, "draws": 0, "losses": 2, "rounds": [{"opponent": "Carson G.", "color": "W", "score": 0.0}, {"opponent": "Eric T.", "color": "B", "score": 0.0}, {"opponent": "Keagan O.", "color": "W", "score": 1.0}, {"opponent": "Nick H.", "color": "B", "score": 1.0}], "median": 4.0, "solkoff": 8.0, "cumulative": 3.0, "cumulative_opp": 20.0}, {"name": "Thien V.", "points": 2.0, "wins": 2, "draws": 0, "losses": 2, "rounds": [{"opponent": "Marco W.", "color": "W", "score": 0.0}, {"opponent": "Keagan O.", "color": "B", "score": 1.0}, {"opponent": "Sam M.", "color": "W", "score": 1.0}, {"opponent": "Carson G.", "color": "W", "score": 0.0}], "median": 4.0, "solkoff": 7.5, "cumulative": 5.0, "cumulative_opp": 17.0}, {"name": "Nick H.", "points": 1.0, "wins": 1, "draws": 0, "losses": 3, "rounds": [{"opponent": "Eric T.", "color": "W", "score": 0.0}, {"opponent": "Cherie D.", "color": "B", "score": 1.0}, {"opponent": "Carson G.", "color": "B", "score": 0.0}, {"opponent": "Mitch K.", "color": "W", "score": 0.0}], "median": 5.0, "solkoff": 8.0, "cumulative": 3.0, "cumulative_opp": 19.0}, {"name": "Keagan O.", "points": 1.0, "wins": 1, "draws": 0, "losses": 3, "rounds": [{"opponent": "Chris C.", "color": "B", "score": 0.0}, {"opponent": "Thien V.", "color": "W", "score": 0.0}, {"opponent": "Mitch K.", "color": "B", "score": 0.0}, {"opponent": "Cherie D.", "color": "W", "score": 1.0}], "median": 4.0, "solkoff": 7.5, "cumulative": 1.0, "cumulative_opp": 17.0}, {"name": "Sam M.", "points": 0.0, "wins": 0, "draws": 0, "losses": 3, "rounds": [null, {"opponent": "Marco W.", "color": "B", "score": 0.0}, {"opponent": "Thien V.", "color": "B", "score": 0.0}, {"opponent": "Chris C.", "color": "W", "score": 0.0}], "median": 3.5, "solkoff": 9.0, "cumulative": 0.0, "cumulative_opp": 23.0}, {"name": "Cherie D.", "points": 0.0, "wins": 0, "draws": 0, "losses": 3, "rounds": [null, {"opponent": "Nick H.", "color": "W", "score": 0.0}, {"opponent": "Eric T.", "color": "B", "score": 0.0}, {"opponent": "Keagan O.", "color": "B", "score": 0.0}], "median": 1.0, "solkoff": 5.0, "cumulative": 0.0, "cumulative_opp": 13.0}]}, {"date": "Sep 10, 2025", "date_raw": "20250910", "rounds": 4, "games": 24, "players": 13, "standings": [{"name": "Chris C.", "points": 4.0, "wins": 4, "draws": 0, "losses": 0, "rounds": [{"opponent": "Reese H.", "color": "W", "score": 1.0}, {"opponent": "Jonathan D.", "color": "B", "score": 1.0}, {"opponent": "Sam M.", "color": "W", "score": 1.0}, {"opponent": "Marco W.", "color": "W", "score": 1.0}], "median": 4.0, "solkoff": 9.0, "cumulative": 10.0, "cumulative_opp": 25.0}, {"name": "Marco W.", "points": 3.0, "wins": 3, "draws": 0, "losses": 1, "rounds": [{"opponent": "Mitch K.", "color": "B", "score": 1.0}, {"opponent": "Carson G.", "color": "W", "score": 1.0}, {"opponent": "Eric T.", "color": "W", "score": 1.0}, {"opponent": "Chris C.", "color": "B", "score": 0.0}], "median": 5.5, "solkoff": 10.5, "cumulative": 9.0, "cumulative_opp": 25.0}, {"name": "Nick H.", "points": 3.0, "wins": 3, "draws": 0, "losses": 1, "rounds": [{"opponent": "Sam M.", "color": "B", "score": 0.0}, {"opponent": "Reese H.", "color": "W", "score": 1.0}, {"opponent": "Mitch K.", "color": "B", "score": 1.0}, {"opponent": "Jonathan D.", "color": "W", "score": 1.0}], "median": 4.0, "solkoff": 7.0, "cumulative": 6.0, "cumulative_opp": 18.0}, {"name": "Eric T.", "points": 3.0, "wins": 3, "draws": 0, "losses": 1, "rounds": [{"opponent": "Tram T.", "color": "W", "score": 1.0}, {"opponent": "David L.", "color": "B", "score": 1.0}, {"opponent": "Marco W.", "color": "B", "score": 0.0}, {"opponent": "Sam M.", "color": "B", "score": 1.0}], "median": 2.0, "solkoff": 5.0, "cumulative": 8.0, "cumulative_opp": 16.0}, {"name": "Carson G.", "points": 2.5, "wins": 2, "draws": 1, "losses": 1, "rounds": [{"opponent": "Ben B.", "color": "W", "score": 0.5}, {"opponent": "Marco W.", "color": "B", "score": 0.0}, {"opponent": "Robert V.", "color": "W", "score": 1.0}, {"opponent": "David L.", "color": "B", "score": 1.0}], "median": 1.5, "solkoff": 4.5, "cumulative": 5.0, "cumulative_opp": 12.0}, {"name": "Sam M.", "points": 2.0, "wins": 2, "draws": 0, "losses": 2, "rounds": [{"opponent": "Nick H.", "color": "W", "score": 1.0}, {"opponent": "Ben B.", "color": "B", "score": 1.0}, {"opponent": "Chris C.", "color": "B", "score": 0.0}, {"opponent": "Eric T.", "color": "W", "score": 0.0}], "median": 6.0, "solkoff": 11.5, "cumulative": 7.0, "cumulative_opp": 27.0}, {"name": "Reese H.", "points": 2.0, "wins": 2, "draws": 0, "losses": 2, "rounds": [{"opponent": "Chris C.", "color": "B", "score": 0.0}, {"opponent": "Nick H.", "color": "B", "score": 0.0}, {"opponent": "Ben B.", "color": "W", "score": 1.0}, {"opponent": "Robert V.", "color": "W", "score": 1.0}], "median": 4.5, "solkoff": 8.5, "cumulative": 3.0, "cumulative_opp": 19.0}, {"name": "Jonathan D.", "points": 2.0, "wins": 2, "draws": 0, "losses": 2, "rounds": [{"opponent": "Robert V.", "color": "B", "score": 1.0}, {"opponent": "Chris C.", "color": "W", "score": 0.0}, {"opponent": "David L.", "color": "W", "score": 1.0}, {"opponent": "Nick H.", "color": "B", "score": 0.0}], "median": 3.0, "solkoff": 7.0, "cumulative": 6.0, "cumulative_opp": 16.0}, {"name": "Ben B.", "points": 1.5, "wins": 1, "draws": 1, "losses": 2, "rounds": [{"opponent": "Carson G.", "color": "B", "score": 0.5}, {"opponent": "Sam M.", "color": "W", "score": 0.0}, {"opponent": "Reese H.", "color": "B", "score": 0.0}, {"opponent": "Tram T.", "color": "W", "score": 1.0}], "median": 4.0, "solkoff": 6.5, "cumulative": 3.0, "cumulative_opp": 15.0}, {"name": "Mitch K.", "points": 1.0, "wins": 1, "draws": 0, "losses": 2, "rounds": [{"opponent": "Marco W.", "color": "W", "score": 0.0}, {"opponent": "Tram T.", "color": "B", "score": 1.0}, {"opponent": "Nick H.", "color": "W", "score": 0.0}, null], "median": 3.0, "solkoff": 6.0, "cumulative": 2.0, "cumulative_opp": 15.0}, {"name": "David L.", "points": 0.0, "wins": 0, "draws": 0, "losses": 3, "rounds": [null, {"opponent": "Eric T.", "color": "W", "score": 0.0}, {"opponent": "Jonathan D.", "color": "B", "score": 0.0}, {"opponent": "Carson G.", "color": "W", "score": 0.0}], "median": 2.5, "solkoff": 7.5, "cumulative": 0.0, "cumulative_opp": 19.0}, {"name": "Robert V.", "points": 0.0, "wins": 0, "draws": 0, "losses": 3, "rounds": [{"opponent": "Jonathan D.", "color": "W", "score": 0.0}, null, {"opponent": "Carson G.", "color": "B", "score": 0.0}, {"opponent": "Reese H.", "color": "B", "score": 0.0}], "median": 2.0, "solkoff": 6.5, "cumulative": 0.0, "cumulative_opp": 14.0}, {"name": "Tram T.", "points": 0.0, "wins": 0, "draws": 0, "losses": 3, "rounds": [{"opponent": "Eric T.", "color": "B", "score": 0.0}, {"opponent": "Mitch K.", "color": "W", "score": 0.0}, null, {"opponent": "Ben B.", "color": "B", "score": 0.0}], "median": 1.5, "solkoff": 5.5, "cumulative": 0.0, "cumulative_opp": 13.0}]}];
+        let currentSort = { table: '', column: -1, ascending: true };
+        
+        // HTML escape function to prevent XSS
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        // A clickable player name: opens the profile in place on the ratings page,
+        // or links to it from any other page.
+        function playerLink(name) {
+            if (Object.prototype.hasOwnProperty.call(players, name)) {
+                const span = document.createElement('span');
+                span.className = 'player-name';
+                span.textContent = name;
+                span.onclick = () => showPlayerView(name);
+                return span;
+            }
+            const link = document.createElement('a');
+            link.className = 'player-name';
+            link.textContent = name;
+            link.href = 'index.html?player=' + encodeURIComponent(name);
+            return link;
+        }
+        
+        // Open a profile from ?player=NAME. The value is only ever used as a lookup
+        // key into the embedded players object; unknown names are ignored.
+        function openPlayerFromUrl() {
+            const name = new URLSearchParams(window.location.search).get('player');
+            if (name !== null && Object.prototype.hasOwnProperty.call(players, name)) {
+                showPlayerView(name);
+            }
+        }
+        
+        // Populate ratings table
+        function populateRatingsTable() {
+            const tbody = document.getElementById('ratings-tbody');
+            tbody.innerHTML = '';
+            
+            const sortedPlayers = Object.values(players).sort((a, b) => b.rating - a.rating);
+            
+            sortedPlayers.forEach(player => {
+                const winRate = player.games > 0 ? ((player.wins + player.draws * 0.5) / player.games * 100).toFixed(1) + '%' : '0%';
+                
+                const row = tbody.insertRow();
+                
+                // Create cells securely using createElement
+                row.insertCell().appendChild(playerLink(player.name));
+                
+                const eloCell = row.insertCell();
+                eloCell.textContent = player.rating;
+                
+                const glickoCell = row.insertCell();
+                glickoCell.textContent = `${player.glicko_rating}±${player.glicko_deviation}`;
+                
+                const uscfCell = row.insertCell();
+                uscfCell.textContent = player.uscf_rating;
+                
+                const gamesCell = row.insertCell();
+                gamesCell.textContent = player.games;
+                
+                const winsCell = row.insertCell();
+                winsCell.textContent = player.wins;
+                
+                const drawsCell = row.insertCell();
+                drawsCell.textContent = player.draws;
+                
+                const lossesCell = row.insertCell();
+                lossesCell.textContent = player.losses;
+                
+                const winRateCell = row.insertCell();
+                winRateCell.textContent = winRate;
+            });
+        }
+        
+        // Format a score like 0.5 -> ½, 2.5 -> 2½
+        function formatScore(score) {
+            const whole = Math.floor(score);
+            const half = score - whole === 0.5 ? '½' : '';
+            return whole === 0 && half ? half : `${whole}${half}`;
+        }
+        
+        // Populate tournament crosstables (one collapsible block per date, newest first)
+        function populateTournaments() {
+            const container = document.getElementById('tournaments-container');
+            container.innerHTML = '';
+            
+            tournaments.forEach((tournament, index) => {
+                const details = document.createElement('details');
+                details.className = 'tournament';
+                details.open = index === 0;
+                
+                const summary = document.createElement('summary');
+                summary.textContent = `${tournament.date} — ${tournament.players} players, ${tournament.rounds} rounds, ${tournament.games} games`;
+                details.appendChild(summary);
+                
+                const table = document.createElement('table');
+                table.className = 'crosstable';
+                const headRow = table.createTHead().insertRow();
+                const roundLabels = Array.from({length: tournament.rounds}, (_, i) => `R${i + 1}`);
+                ['#', 'Player', ...roundLabels, 'Pts', 'MMed', 'Solk', 'Cum', 'CumOpp', 'W-D-L'].forEach(label => {
+                    const th = document.createElement('th');
+                    th.textContent = label;
+                    headRow.appendChild(th);
+                });
+                
+                const tbody = table.createTBody();
+                tournament.standings.forEach((standing, rank) => {
+                    const row = tbody.insertRow();
+                    row.insertCell().textContent = rank + 1;
+                    
+                    row.insertCell().appendChild(playerLink(standing.name));
+                    
+                    standing.rounds.forEach(game => {
+                        const cell = row.insertCell();
+                        if (game && game.bye) {
+                            cell.textContent = `bye ${formatScore(game.score)}`;
+                            cell.className = 'bye';
+                        } else if (game) {
+                            cell.textContent = `${game.opponent} (${game.color}) ${formatScore(game.score)}`;
+                        } else {
+                            cell.textContent = '—';
+                            cell.className = 'no-game';
+                        }
+                    });
+                    
+                    row.insertCell().textContent = formatScore(standing.points);
+                    ['median', 'solkoff', 'cumulative', 'cumulative_opp'].forEach(key => {
+                        const cell = row.insertCell();
+                        cell.textContent = formatScore(standing[key]);
+                        cell.className = 'tiebreak';
+                    });
+                    row.insertCell().textContent = `${standing.wins}-${standing.draws}-${standing.losses}`;
+                });
+                
+                details.appendChild(table);
+                container.appendChild(details);
+            });
+        }
+        
+        // Populate games table
+        function populateGamesTable(filteredGames = null) {
+            const tbody = document.getElementById('games-tbody');
+            tbody.innerHTML = '';
+            
+            const gamesToShow = filteredGames || games.slice().reverse();
+            
+            gamesToShow.forEach(game => {
+                const whiteChangeStr = game.white_change > 0 ? `+${game.white_change}` : `${game.white_change}`;
+                const blackChangeStr = game.black_change > 0 ? `+${game.black_change}` : `${game.black_change}`;
+                const dateStr = game.date || '';
+                
+                const row = tbody.insertRow();
+                
+                // Create cells securely
+                const gameNumCell = row.insertCell();
+                gameNumCell.textContent = game.game_number;
+                
+                const dateCell = row.insertCell();
+                dateCell.textContent = dateStr;
+                
+                const whiteCell = row.insertCell();
+                whiteCell.textContent = `${game.white_player} (${game.white_rating_before} → ${game.white_rating_after}) ${whiteChangeStr}`;
+                
+                const blackCell = row.insertCell();
+                blackCell.textContent = `${game.black_player} (${game.black_rating_before} → ${game.black_rating_after}) ${blackChangeStr}`;
+                
+                const resultCell = row.insertCell();
+                resultCell.textContent = game.result;
+            });
+        }
+        
+        // Sort ratings table
+        function sortRatingsTable(columnIndex) {
+            const tbody = document.getElementById('ratings-tbody');
+            const rows = Array.from(tbody.querySelectorAll('tr'));
+            
+            const ascending = currentSort.table === 'ratings' && currentSort.column === columnIndex ? !currentSort.ascending : true;
+            currentSort = { table: 'ratings', column: columnIndex, ascending: ascending };
+            
+            rows.sort((a, b) => {
+                let aVal = a.cells[columnIndex].textContent.trim();
+                let bVal = b.cells[columnIndex].textContent.trim();
+                
+                // Handle numeric columns
+                if (columnIndex > 0) {
+                    if (columnIndex === 2) { // Glicko-2 column - extract rating before ± symbol
+                        aVal = parseFloat(aVal.split('±')[0]) || 0;
+                        bVal = parseFloat(bVal.split('±')[0]) || 0;
+                    } else {
+                        aVal = parseFloat(aVal.replace('%', '').replace(/[^\d.-]/g, '')) || 0;
+                        bVal = parseFloat(bVal.replace('%', '').replace(/[^\d.-]/g, '')) || 0;
+                    }
+                    return ascending ? aVal - bVal : bVal - aVal;
+                }
+                
+                // Handle text columns
+                return ascending ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
+            });
+            
+            tbody.innerHTML = '';
+            rows.forEach(row => tbody.appendChild(row));
+            
+            updateSortIndicators('ratings', columnIndex, ascending);
+        }
+        
+        // Sort games table
+        function sortGamesTable(columnIndex) {
+            const tbody = document.getElementById('games-tbody');
+            const rows = Array.from(tbody.querySelectorAll('tr'));
+            
+            const ascending = currentSort.table === 'games' && currentSort.column === columnIndex ? !currentSort.ascending : true;
+            currentSort = { table: 'games', column: columnIndex, ascending: ascending };
+            
+            rows.sort((a, b) => {
+                let aVal = a.cells[columnIndex].textContent.trim();
+                let bVal = b.cells[columnIndex].textContent.trim();
+                
+                if (columnIndex === 0) { // Game number column
+                    aVal = parseInt(aVal) || 0;
+                    bVal = parseInt(bVal) || 0;
+                    return ascending ? aVal - bVal : bVal - aVal;
+                } else if (columnIndex === 1) { // Date column
+                    // Handle empty dates by treating them as very old dates for sorting
+                    const aDate = aVal === '' ? '1900-01-01' : aVal;
+                    const bDate = bVal === '' ? '1900-01-01' : bVal;
+                    return ascending ? aDate.localeCompare(bDate) : bDate.localeCompare(aDate);
+                }
+                
+                return ascending ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
+            });
+            
+            tbody.innerHTML = '';
+            rows.forEach(row => tbody.appendChild(row));
+            
+            updateSortIndicators('games', columnIndex, ascending);
+        }
+        
+        // Sort head-to-head table
+        function sortH2HTable(columnIndex) {
+            const tbody = document.getElementById('h2h-tbody');
+            const rows = Array.from(tbody.querySelectorAll('tr'));
+            
+            const ascending = currentSort.table === 'h2h' && currentSort.column === columnIndex ? !currentSort.ascending : true;
+            currentSort = { table: 'h2h', column: columnIndex, ascending: ascending };
+            
+            rows.sort((a, b) => {
+                let aVal = a.cells[columnIndex].textContent.trim();
+                let bVal = b.cells[columnIndex].textContent.trim();
+                
+                if (columnIndex === 0) { // Opponent name column (text)
+                    return ascending ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
+                } else if (columnIndex === 5) { // Score column (fraction like "5.5/10")
+                    const aParts = aVal.split('/');
+                    const bParts = bVal.split('/');
+                    const aScore = aParts.length === 2 ? parseFloat(aParts[0]) / parseFloat(aParts[1]) : 0;
+                    const bScore = bParts.length === 2 ? parseFloat(bParts[0]) / parseFloat(bParts[1]) : 0;
+                    return ascending ? aScore - bScore : bScore - aScore;
+                } else { // Numeric columns (Games, Wins, Draws, Losses)
+                    const aNum = parseInt(aVal) || 0;
+                    const bNum = parseInt(bVal) || 0;
+                    return ascending ? aNum - bNum : bNum - aNum;
+                }
+            });
+            
+            tbody.innerHTML = '';
+            rows.forEach(row => tbody.appendChild(row));
+            
+            updateSortIndicators('h2h', columnIndex, ascending);
+        }
+        
+        // Update sort indicators
+        function updateSortIndicators(table, columnIndex, ascending) {
+            let tableId;
+            if (table === 'ratings') {
+                tableId = 'ratings-table';
+            } else if (table === 'games') {
+                tableId = 'games-table';
+            } else if (table === 'h2h') {
+                tableId = 'h2h-table';
+            }
+            
+            const indicators = document.querySelectorAll(`#${tableId} .sort-indicator`);
+            
+            indicators.forEach((indicator, index) => {
+                if (index === columnIndex) {
+                    indicator.textContent = ascending ? '↑' : '↓';
+                } else {
+                    indicator.textContent = '';
+                }
+            });
+        }
+        
+        // Apply filters to games table
+        function applyFilters() {
+            const playerFilter = document.getElementById('player-filter').value.toLowerCase();
+            const resultFilter = document.getElementById('result-filter').value;
+            
+            let filteredGames = games.slice().reverse();
+            
+            if (playerFilter) {
+                filteredGames = filteredGames.filter(game => 
+                    game.white_player.toLowerCase().includes(playerFilter) || 
+                    game.black_player.toLowerCase().includes(playerFilter)
+                );
+            }
+            
+            if (resultFilter) {
+                filteredGames = filteredGames.filter(game => game.result === resultFilter);
+            }
+            
+            populateGamesTable(filteredGames);
+        }
+        
+        // Clear filters
+        function clearFilters() {
+            document.getElementById('player-filter').value = '';
+            document.getElementById('result-filter').value = '';
+            populateGamesTable();
+        }
+        
+        // Global variable to store current chart instance
+        let currentChart = null;
+        
+        // Create rating history chart
+        function createRatingChart(playerName) {
+            const player = players[playerName];
+            if (!player || !player.rating_history || player.rating_history.length === 0) {
+                return;
+            }
+            
+            // Destroy existing chart if it exists
+            if (currentChart) {
+                currentChart.destroy();
+            }
+            
+            const ctx = document.getElementById('rating-chart').getContext('2d');
+            const history = player.rating_history;
+            
+            // Prepare data for chart
+            const labels = history.map(h => h.date || `Game ${h.game}`);
+            const eloData = history.map(h => h.elo);
+            const glicko2Data = history.map(h => h.glicko2);
+            const uscfData = history.map(h => h.uscf);
+            
+            currentChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'ELO',
+                        data: eloData,
+                        borderColor: 'rgb(75, 192, 192)',
+                        backgroundColor: 'rgba(75, 192, 192, 0.1)',
+                        tension: 0.1,
+                        fill: false
+                    }, {
+                        label: 'Glicko-2',
+                        data: glicko2Data,
+                        borderColor: 'rgb(255, 99, 132)',
+                        backgroundColor: 'rgba(255, 99, 132, 0.1)',
+                        tension: 0.1,
+                        fill: false
+                    }, {
+                        label: 'USCF',
+                        data: uscfData,
+                        borderColor: 'rgb(54, 162, 235)',
+                        backgroundColor: 'rgba(54, 162, 235, 0.1)',
+                        tension: 0.1,
+                        fill: false
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: `Rating History - ${playerName}`
+                        },
+                        legend: {
+                            display: true,
+                            position: 'top'
+                        }
+                    },
+                    scales: {
+                        x: {
+                            display: true,
+                            title: {
+                                display: true,
+                                text: 'Games'
+                            },
+                            ticks: {
+                                maxTicksLimit: 10
+                            }
+                        },
+                        y: {
+                            display: true,
+                            title: {
+                                display: true,
+                                text: 'Rating'
+                            },
+                            min: Math.min(...eloData, ...glicko2Data, ...uscfData) - 50,
+                            max: Math.max(...eloData, ...glicko2Data, ...uscfData) + 50
+                        }
+                    },
+                    interaction: {
+                        intersect: false,
+                        mode: 'index'
+                    }
+                }
+            });
+        }
+        
+        // Show player detail view
+        function ordinal(n) {
+            const suffix = (n % 100 >= 11 && n % 100 <= 13) ? 'th' : ['th', 'st', 'nd', 'rd'][n % 10] || 'th';
+            return `${n}${suffix}`;
+        }
+        
+        function addStatLine(container, label, value) {
+            const p = document.createElement('p');
+            const strong = document.createElement('strong');
+            strong.textContent = `${label}: `;
+            p.appendChild(strong);
+            p.appendChild(document.createTextNode(value));
+            container.appendChild(p);
+        }
+        
+        // Tournament summary, best result, streaks, colour split and per-tournament results
+        function populateTournamentStats(player) {
+            const summary = document.getElementById('tournament-summary');
+            summary.innerHTML = '';
+            const stats = player.tournament_stats;
+            const table = document.getElementById('tournament-results');
+            const tbody = document.getElementById('tournament-results-tbody');
+            tbody.innerHTML = '';
+            
+            if (stats.played === 0) {
+                summary.innerHTML = '<p>No tournaments played yet.</p>';
+                table.classList.add('hidden');
+                return;
+            }
+            table.classList.remove('hidden');
+            
+            addStatLine(summary, 'Tournaments', `${stats.played} played · ${stats.wins} won · ${stats.podiums} podiums · avg finish ${stats.avg_finish}`);
+            addStatLine(summary, 'Best result', `${formatScore(stats.best.points)}/${stats.best.rounds} on ${stats.best.date}`);
+            addStatLine(summary, 'Win streak', `${player.streaks.current} current · ${player.streaks.longest} longest`);
+            const white = player.color_stats.white, black = player.color_stats.black;
+            addStatLine(summary, 'By colour', `White ${formatScore(white.points)}/${white.games} · Black ${formatScore(black.points)}/${black.games}`);
+            
+            stats.results.forEach(result => {
+                const row = tbody.insertRow();
+                row.insertCell().textContent = result.date;
+                row.insertCell().textContent = `${ordinal(result.place)} of ${result.players}`;
+                row.insertCell().textContent = `${formatScore(result.points)}/${result.rounds}`;
+                row.insertCell().textContent = `${result.wins}-${result.draws}-${result.losses}`;
+            });
+        }
+        
+        function showPlayerView(playerName) {
+            if (!Object.prototype.hasOwnProperty.call(players, playerName)) return;
+            const player = players[playerName];
+            
+            document.getElementById('main-view').classList.add('hidden');
+            document.getElementById('player-view').classList.remove('hidden');
+            
+            document.getElementById('player-title').textContent = playerName;
+            
+            const winRate = player.games > 0 ? ((player.wins + player.draws * 0.5) / player.games * 100).toFixed(1) + '%' : '0%';
+            
+            // Create player stats securely
+            const playerStatsDiv = document.getElementById('player-stats');
+            playerStatsDiv.innerHTML = ''; // Clear existing content
+            
+            const ratingP = document.createElement('p');
+            ratingP.innerHTML = '<strong>Current Rating:</strong> ';
+            ratingP.appendChild(document.createTextNode(player.rating));
+            playerStatsDiv.appendChild(ratingP);
+            
+            const gamesP = document.createElement('p');
+            gamesP.innerHTML = '<strong>Games Played:</strong> ';
+            gamesP.appendChild(document.createTextNode(player.games));
+            playerStatsDiv.appendChild(gamesP);
+            
+            const recordP = document.createElement('p');
+            recordP.innerHTML = '<strong>Record:</strong> ';
+            recordP.appendChild(document.createTextNode(`${player.wins}W - ${player.draws}D - ${player.losses}L`));
+            playerStatsDiv.appendChild(recordP);
+            
+            const winRateP = document.createElement('p');
+            winRateP.innerHTML = '<strong>Win Rate:</strong> ';
+            winRateP.appendChild(document.createTextNode(winRate));
+            playerStatsDiv.appendChild(winRateP);
+            
+            // Create head-to-head table securely
+            const tbody = document.getElementById('h2h-tbody');
+            tbody.innerHTML = '';
+            
+            const opponents = Object.keys(player.opponents).sort();
+            opponents.forEach(opponentName => {
+                const record = player.opponents[opponentName];
+                const score = record.wins + record.draws * 0.5;
+                const scoreText = `${score}/${record.games}`;
+                
+                const row = tbody.insertRow();
+                
+                const opponentCell = row.insertCell();
+                opponentCell.textContent = opponentName;
+                
+                const gamesCell = row.insertCell();
+                gamesCell.textContent = record.games;
+                
+                const winsCell = row.insertCell();
+                winsCell.textContent = record.wins;
+                
+                const drawsCell = row.insertCell();
+                drawsCell.textContent = record.draws;
+                
+                const lossesCell = row.insertCell();
+                lossesCell.textContent = record.losses;
+                
+                const scoreCell = row.insertCell();
+                scoreCell.textContent = scoreText;
+            });
+            
+            // Populate current ratings section with three-column layout
+            const currentRatingsDiv = document.getElementById('current-ratings');
+            currentRatingsDiv.innerHTML = '';
+            
+            // Create grid container
+            const ratingsGrid = document.createElement('div');
+            ratingsGrid.className = 'ratings-grid';
+            
+            // Current ratings column
+            const currentColumn = document.createElement('div');
+            currentColumn.className = 'rating-column';
+            const currentHeader = document.createElement('h4');
+            currentHeader.textContent = 'Current';
+            currentColumn.appendChild(currentHeader);
+            
+            const eloCurrentDiv = document.createElement('div');
+            eloCurrentDiv.className = 'rating-value';
+            eloCurrentDiv.innerHTML = '<strong><a href="https://en.wikipedia.org/wiki/Elo_rating_system" target="_blank" rel="noopener">ELO</a>:</strong> ' + player.rating;
+            currentColumn.appendChild(eloCurrentDiv);
+            
+            const glickoCurrentDiv = document.createElement('div');
+            glickoCurrentDiv.className = 'rating-value';
+            glickoCurrentDiv.innerHTML = '<strong><a href="http://www.glicko.net/glicko/glicko2.pdf" target="_blank" rel="noopener">Glicko-2</a>:</strong> ' + player.glicko_rating + '±' + player.glicko_deviation;
+            currentColumn.appendChild(glickoCurrentDiv);
+            
+            const uscfCurrentDiv = document.createElement('div');
+            uscfCurrentDiv.className = 'rating-value';
+            uscfCurrentDiv.innerHTML = '<strong><a href="https://new.uschess.org/sites/default/files/media/documents/the-us-chess-rating-system-revised-september-2020.pdf" target="_blank" rel="noopener">USCF</a>:</strong> ' + player.uscf_rating;
+            currentColumn.appendChild(uscfCurrentDiv);
+            
+            // Highest ratings column
+            const highestColumn = document.createElement('div');
+            highestColumn.className = 'rating-column';
+            const highestHeader = document.createElement('h4');
+            highestHeader.textContent = 'Highest';
+            highestColumn.appendChild(highestHeader);
+            
+            const eloHighestDiv = document.createElement('div');
+            eloHighestDiv.className = 'rating-value';
+            eloHighestDiv.innerHTML = '<strong>ELO:</strong> ' + player.highest_elo;
+            highestColumn.appendChild(eloHighestDiv);
+            
+            const glickoHighestDiv = document.createElement('div');
+            glickoHighestDiv.className = 'rating-value';
+            glickoHighestDiv.innerHTML = '<strong>Glicko-2:</strong> ' + player.highest_glicko;
+            highestColumn.appendChild(glickoHighestDiv);
+            
+            const uscfHighestDiv = document.createElement('div');
+            uscfHighestDiv.className = 'rating-value';
+            uscfHighestDiv.innerHTML = '<strong>USCF:</strong> ' + player.highest_uscf;
+            highestColumn.appendChild(uscfHighestDiv);
+            
+            // Lowest ratings column
+            const lowestColumn = document.createElement('div');
+            lowestColumn.className = 'rating-column';
+            const lowestHeader = document.createElement('h4');
+            lowestHeader.textContent = 'Lowest';
+            lowestColumn.appendChild(lowestHeader);
+            
+            const eloLowestDiv = document.createElement('div');
+            eloLowestDiv.className = 'rating-value';
+            eloLowestDiv.innerHTML = '<strong>ELO:</strong> ' + player.lowest_elo;
+            lowestColumn.appendChild(eloLowestDiv);
+            
+            const glickoLowestDiv = document.createElement('div');
+            glickoLowestDiv.className = 'rating-value';
+            glickoLowestDiv.innerHTML = '<strong>Glicko-2:</strong> ' + player.lowest_glicko;
+            lowestColumn.appendChild(glickoLowestDiv);
+            
+            const uscfLowestDiv = document.createElement('div');
+            uscfLowestDiv.className = 'rating-value';
+            uscfLowestDiv.innerHTML = '<strong>USCF:</strong> ' + player.lowest_uscf;
+            lowestColumn.appendChild(uscfLowestDiv);
+            
+            // Add columns to grid
+            ratingsGrid.appendChild(currentColumn);
+            ratingsGrid.appendChild(highestColumn);
+            ratingsGrid.appendChild(lowestColumn);
+            
+            // Add grid to container
+            currentRatingsDiv.appendChild(ratingsGrid);
+            
+            populateTournamentStats(player);
+            
+            // Populate biggest wins section
+            const biggestWinsDiv = document.getElementById('biggest-wins');
+            biggestWinsDiv.innerHTML = '';
+            
+            if (player.biggest_wins && player.biggest_wins.length > 0) {
+                player.biggest_wins.forEach((win, index) => {
+                    const winDiv = document.createElement('div');
+                    winDiv.style.marginBottom = '10px';
+                    winDiv.innerHTML = `
+                        <strong>${index + 1}. vs ${win.opponent}</strong><br>
+                        Rating difference: +${win.rating_diff} (${win.own_rating} vs ${win.opponent_rating})<br>
+                        Game #${win.game_number}${win.date ? ', ' + win.date : ''}
+                    `;
+                    biggestWinsDiv.appendChild(winDiv);
+                });
+            } else {
+                biggestWinsDiv.innerHTML = '<p>No significant wins recorded yet.</p>';
+            }
+            
+            // Populate biggest upsets section
+            const biggestUpsetsDiv = document.getElementById('biggest-upsets');
+            biggestUpsetsDiv.innerHTML = '';
+            
+            if (player.biggest_upsets && player.biggest_upsets.length > 0) {
+                player.biggest_upsets.forEach((upset, index) => {
+                    const upsetDiv = document.createElement('div');
+                    upsetDiv.style.marginBottom = '10px';
+                    upsetDiv.innerHTML = `
+                        <strong>${index + 1}. Lost to ${upset.opponent}</strong><br>
+                        Rating difference: -${upset.rating_diff} (${upset.own_rating} vs ${upset.opponent_rating})<br>
+                        Game #${upset.game_number}${upset.date ? ', ' + upset.date : ''}
+                    `;
+                    biggestUpsetsDiv.appendChild(upsetDiv);
+                });
+            } else {
+                biggestUpsetsDiv.innerHTML = '<p>No major upsets recorded.</p>';
+            }
+            
+            // Create the rating chart after populating the table
+            createRatingChart(playerName);
+        }
+        
+        
+        // Initialize the page
+        window.addEventListener('DOMContentLoaded', function() {
+            populateTournaments();
+        });
+    </script>
+</body>
+</html>

@@ -591,16 +591,22 @@ class ChessRatingSystem:
                 streaks['current'] = streaks['current'] + 1 if score == 1 else 0
                 streaks['longest'] = max(streaks['longest'], streaks['current'])
     
-    def generate_html(self, output_filename='index.html'):
-        """Generate HTML file with embedded data"""
-        self.compute_player_stats()
-        
-        # Prepare data for JavaScript
-        players_data = json.dumps(self.players)
-        games_data = json.dumps(self.games)
-        tournaments_data = json.dumps(self.build_tournaments())
-        
-        html_content = f'''<!DOCTYPE html>
+    PAGES = [
+        ('index.html', 'Ratings'),
+        ('tournaments.html', 'Tournaments'),
+        ('games.html', 'Games'),
+    ]
+    
+    def nav_html(self, active):
+        def link(name, label):
+            css_class = ' class="active"' if name == active else ''
+            return f'<a href="{name}"{css_class}>{label}</a>'
+        links = ''.join(link(name, label) for name, label in self.PAGES)
+        return f'<nav class="site-nav">{links}</nav>'
+    
+    def render_page(self, active, body, data_js, init_js):
+        """Wrap a page body in the shared shell: styles, header, nav and scripts."""
+        return f'''<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -630,6 +636,30 @@ class ChessRatingSystem:
         
         .section {{
             margin: 30px 0;
+        }}
+        
+        .site-nav {{
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin: 10px 0 20px;
+        }}
+        
+        .site-nav a {{
+            padding: 8px 20px;
+            border-radius: 4px;
+            color: #2196F3;
+            text-decoration: none;
+            font-weight: bold;
+        }}
+        
+        .site-nav a:hover {{
+            background-color: #e3f2fd;
+        }}
+        
+        .site-nav a.active {{
+            background-color: #4CAF50;
+            color: white;
         }}
         
         table {{
@@ -702,20 +732,6 @@ class ChessRatingSystem:
         
         .filter-container button:hover {{
             background-color: #45a049;
-        }}
-        
-        .back-button {{
-            background-color: #2196F3;
-            color: white;
-            padding: 10px 20px;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            margin: 20px 0;
-        }}
-        
-        .back-button:hover {{
-            background-color: #0c7cd5;
         }}
         
         .hidden {{
@@ -819,134 +835,14 @@ class ChessRatingSystem:
 <body>
     <div class="container">
         <h1>OU Chess Club Ratings</h1>
+        {self.nav_html(active)}
         
-        <!-- Main Ratings View -->
-        <div id="main-view">
-            <div class="section">
-                <h2>Player Ratings</h2>
-                <table id="ratings-table">
-                    <thead>
-                        <tr>
-                            <th onclick="sortRatingsTable(0)">Player Name <span class="sort-indicator"></span></th>
-                            <th onclick="sortRatingsTable(1)">ELO <span class="sort-indicator"></span></th>
-                            <th onclick="sortRatingsTable(2)">Glicko-2 <span class="sort-indicator"></span></th>
-                            <th onclick="sortRatingsTable(3)">USCF <span class="sort-indicator"></span></th>
-                            <th onclick="sortRatingsTable(4)">Games Played <span class="sort-indicator"></span></th>
-                            <th onclick="sortRatingsTable(5)">Wins <span class="sort-indicator"></span></th>
-                            <th onclick="sortRatingsTable(6)">Draws <span class="sort-indicator"></span></th>
-                            <th onclick="sortRatingsTable(7)">Losses <span class="sort-indicator"></span></th>
-                            <th onclick="sortRatingsTable(8)">Win Rate <span class="sort-indicator"></span></th>
-                        </tr>
-                    </thead>
-                    <tbody id="ratings-tbody">
-                    </tbody>
-                </table>
-            </div>
-            
-            <div class="section">
-                <h2>Tournaments</h2>
-                <div id="tournaments-container"></div>
-            </div>
-            
-            <div class="section">
-                <h2>Game History</h2>
-                <div class="filter-container">
-                    <label for="player-filter">Filter by Player:</label>
-                    <input type="text" id="player-filter" placeholder="Enter player name">
-                    
-                    <label for="result-filter">Filter by Result:</label>
-                    <select id="result-filter">
-                        <option value="">All Results</option>
-                        <option value="1-0">White Wins</option>
-                        <option value="0-1">Black Wins</option>
-                        <option value="0.5-0.5">Draw</option>
-                    </select>
-                    
-                    <button onclick="applyFilters()">Apply Filters</button>
-                    <button onclick="clearFilters()">Clear Filters</button>
-                </div>
-                
-                <table id="games-table">
-                    <thead>
-                        <tr>
-                            <th onclick="sortGamesTable(0)">Game # <span class="sort-indicator"></span></th>
-                            <th onclick="sortGamesTable(1)">Date <span class="sort-indicator"></span></th>
-                            <th onclick="sortGamesTable(2)">White Player <span class="sort-indicator"></span></th>
-                            <th onclick="sortGamesTable(3)">Black Player <span class="sort-indicator"></span></th>
-                            <th onclick="sortGamesTable(4)">Result <span class="sort-indicator"></span></th>
-                        </tr>
-                    </thead>
-                    <tbody id="games-tbody">
-                    </tbody>
-                </table>
-            </div>
-        </div>
-        
-        <!-- Player Detail View -->
-        <div id="player-view" class="hidden">
-            <button class="back-button" onclick="showMainView()">← Back to Main View</button>
-            <h2 id="player-title"></h2>
-            <div id="player-stats" class="stats-summary"></div>
-            
-            <div class="chart-container">
-                <h3>Rating History</h3>
-                <canvas id="rating-chart"></canvas>
-            </div>
-            
-            <div class="stats-summary">
-                <h3>Ratings</h3>
-                <div id="current-ratings"></div>
-            </div>
-            
-            <div class="stats-summary">
-                <h3>Tournaments</h3>
-                <div id="tournament-summary"></div>
-                <table id="tournament-results">
-                    <thead>
-                        <tr>
-                            <th>Date</th>
-                            <th>Place</th>
-                            <th>Score</th>
-                            <th>W-D-L</th>
-                        </tr>
-                    </thead>
-                    <tbody id="tournament-results-tbody"></tbody>
-                </table>
-            </div>
-            
-            <div class="stats-summary">
-                <h3>Biggest Wins (Against Higher-Rated Players)</h3>
-                <div id="biggest-wins"></div>
-            </div>
-            
-            <div class="stats-summary">
-                <h3>Biggest Upsets (Losses to Lower-Rated Players)</h3>
-                <div id="biggest-upsets"></div>
-            </div>
-            
-            <h3>Head-to-Head Records</h3>
-            <table id="h2h-table">
-                <thead>
-                    <tr>
-                        <th onclick="sortH2HTable(0)">Opponent <span class="sort-indicator"></span></th>
-                        <th onclick="sortH2HTable(1)">Games <span class="sort-indicator"></span></th>
-                        <th onclick="sortH2HTable(2)">Wins <span class="sort-indicator"></span></th>
-                        <th onclick="sortH2HTable(3)">Draws <span class="sort-indicator"></span></th>
-                        <th onclick="sortH2HTable(4)">Losses <span class="sort-indicator"></span></th>
-                        <th onclick="sortH2HTable(5)">Score <span class="sort-indicator"></span></th>
-                    </tr>
-                </thead>
-                <tbody id="h2h-tbody">
-                </tbody>
-            </table>
-        </div>
+{body}
     </div>
 
     <script>
         // Embedded data from Python
-        let players = {players_data};
-        let games = {games_data};
-        let tournaments = {tournaments_data};
+{data_js}
         let currentSort = {{ table: '', column: -1, ascending: true }};
         
         // HTML escape function to prevent XSS
@@ -954,6 +850,32 @@ class ChessRatingSystem:
             const div = document.createElement('div');
             div.textContent = text;
             return div.innerHTML;
+        }}
+        
+        // A clickable player name: opens the profile in place on the ratings page,
+        // or links to it from any other page.
+        function playerLink(name) {{
+            if (Object.prototype.hasOwnProperty.call(players, name)) {{
+                const span = document.createElement('span');
+                span.className = 'player-name';
+                span.textContent = name;
+                span.onclick = () => showPlayerView(name);
+                return span;
+            }}
+            const link = document.createElement('a');
+            link.className = 'player-name';
+            link.textContent = name;
+            link.href = 'index.html?player=' + encodeURIComponent(name);
+            return link;
+        }}
+        
+        // Open a profile from ?player=NAME. The value is only ever used as a lookup
+        // key into the embedded players object; unknown names are ignored.
+        function openPlayerFromUrl() {{
+            const name = new URLSearchParams(window.location.search).get('player');
+            if (name !== null && Object.prototype.hasOwnProperty.call(players, name)) {{
+                showPlayerView(name);
+            }}
         }}
         
         // Populate ratings table
@@ -969,12 +891,7 @@ class ChessRatingSystem:
                 const row = tbody.insertRow();
                 
                 // Create cells securely using createElement
-                const nameCell = row.insertCell();
-                const nameSpan = document.createElement('span');
-                nameSpan.className = 'player-name';
-                nameSpan.textContent = player.name;
-                nameSpan.onclick = () => showPlayerView(player.name);
-                nameCell.appendChild(nameSpan);
+                row.insertCell().appendChild(playerLink(player.name));
                 
                 const eloCell = row.insertCell();
                 eloCell.textContent = player.rating;
@@ -1038,11 +955,7 @@ class ChessRatingSystem:
                     const row = tbody.insertRow();
                     row.insertCell().textContent = rank + 1;
                     
-                    const nameSpan = document.createElement('span');
-                    nameSpan.className = 'player-name';
-                    nameSpan.textContent = standing.name;
-                    nameSpan.onclick = () => showPlayerView(standing.name);
-                    row.insertCell().appendChild(nameSpan);
+                    row.insertCell().appendChild(playerLink(standing.name));
                     
                     standing.rounds.forEach(game => {{
                         const cell = row.insertCell();
@@ -1392,8 +1305,8 @@ class ChessRatingSystem:
         }}
         
         function showPlayerView(playerName) {{
+            if (!Object.prototype.hasOwnProperty.call(players, playerName)) return;
             const player = players[playerName];
-            if (!player) return;
             
             document.getElementById('main-view').classList.add('hidden');
             document.getElementById('player-view').classList.remove('hidden');
@@ -1583,31 +1496,170 @@ class ChessRatingSystem:
             createRatingChart(playerName);
         }}
         
-        // Show main view
-        function showMainView() {{
-            document.getElementById('player-view').classList.add('hidden');
-            document.getElementById('main-view').classList.remove('hidden');
-        }}
         
-        // Initialize the application
+        // Initialize the page
         window.addEventListener('DOMContentLoaded', function() {{
-            populateRatingsTable();
-            populateTournaments();
-            populateGamesTable();
+{init_js}
         }});
     </script>
 </body>
 </html>'''
+    
+    def generate_html(self, output_dir='.'):
+        """Generate index.html, tournaments.html and games.html with embedded data"""
+        self.compute_player_stats()
+        
+        def data_js(players='{}', games='[]', tournaments='[]'):
+            return (f"        let players = {players};\n"
+                    f"        let games = {games};\n"
+                    f"        let tournaments = {tournaments};")
+        
+        pages = {
+            'index.html': self.render_page(
+                'index.html', RATINGS_BODY, data_js(players=json.dumps(self.players)),
+                "            populateRatingsTable();\n            openPlayerFromUrl();"),
+            'tournaments.html': self.render_page(
+                'tournaments.html', TOURNAMENTS_BODY, data_js(tournaments=json.dumps(self.build_tournaments())),
+                "            populateTournaments();"),
+            'games.html': self.render_page(
+                'games.html', GAMES_BODY, data_js(games=json.dumps(self.games)),
+                "            populateGamesTable();"),
+        }
         
         try:
-            with open(output_filename, 'w') as f:
-                f.write(html_content)
-            print(f"Generated HTML file: {output_filename}")
-            print(f"Open file://{os.path.abspath(output_filename)} in your browser")
+            for filename, html in pages.items():
+                output_path = os.path.join(output_dir, filename)
+                with open(output_path, 'w') as f:
+                    f.write(html)
+                print(f"Generated HTML file: {output_path}")
+            print(f"Open file://{os.path.abspath(os.path.join(output_dir, 'index.html'))} in your browser")
             return True
         except Exception as e:
-            print(f"Error writing HTML file: {e}")
+            print(f"Error writing HTML files: {e}")
             return False
+
+
+
+# Page bodies (plain strings; no f-string braces inside)
+RATINGS_BODY = '''        <!-- Main Ratings View -->
+        <div id="main-view">
+            <div class="section">
+                <h2>Player Ratings</h2>
+                <table id="ratings-table">
+                    <thead>
+                        <tr>
+                            <th onclick="sortRatingsTable(0)">Player Name <span class="sort-indicator"></span></th>
+                            <th onclick="sortRatingsTable(1)">ELO <span class="sort-indicator"></span></th>
+                            <th onclick="sortRatingsTable(2)">Glicko-2 <span class="sort-indicator"></span></th>
+                            <th onclick="sortRatingsTable(3)">USCF <span class="sort-indicator"></span></th>
+                            <th onclick="sortRatingsTable(4)">Games Played <span class="sort-indicator"></span></th>
+                            <th onclick="sortRatingsTable(5)">Wins <span class="sort-indicator"></span></th>
+                            <th onclick="sortRatingsTable(6)">Draws <span class="sort-indicator"></span></th>
+                            <th onclick="sortRatingsTable(7)">Losses <span class="sort-indicator"></span></th>
+                            <th onclick="sortRatingsTable(8)">Win Rate <span class="sort-indicator"></span></th>
+                        </tr>
+                    </thead>
+                    <tbody id="ratings-tbody">
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        
+        <!-- Player Detail View -->
+        <div id="player-view" class="hidden">
+            <h2 id="player-title"></h2>
+            <div id="player-stats" class="stats-summary"></div>
+            
+            <div class="chart-container">
+                <h3>Rating History</h3>
+                <canvas id="rating-chart"></canvas>
+            </div>
+            
+            <div class="stats-summary">
+                <h3>Ratings</h3>
+                <div id="current-ratings"></div>
+            </div>
+            
+            <div class="stats-summary">
+                <h3>Tournaments</h3>
+                <div id="tournament-summary"></div>
+                <table id="tournament-results">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Place</th>
+                            <th>Score</th>
+                            <th>W-D-L</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tournament-results-tbody"></tbody>
+                </table>
+            </div>
+            
+            <div class="stats-summary">
+                <h3>Biggest Wins (Against Higher-Rated Players)</h3>
+                <div id="biggest-wins"></div>
+            </div>
+            
+            <div class="stats-summary">
+                <h3>Biggest Upsets (Losses to Lower-Rated Players)</h3>
+                <div id="biggest-upsets"></div>
+            </div>
+            
+            <h3>Head-to-Head Records</h3>
+            <table id="h2h-table">
+                <thead>
+                    <tr>
+                        <th onclick="sortH2HTable(0)">Opponent <span class="sort-indicator"></span></th>
+                        <th onclick="sortH2HTable(1)">Games <span class="sort-indicator"></span></th>
+                        <th onclick="sortH2HTable(2)">Wins <span class="sort-indicator"></span></th>
+                        <th onclick="sortH2HTable(3)">Draws <span class="sort-indicator"></span></th>
+                        <th onclick="sortH2HTable(4)">Losses <span class="sort-indicator"></span></th>
+                        <th onclick="sortH2HTable(5)">Score <span class="sort-indicator"></span></th>
+                    </tr>
+                </thead>
+                <tbody id="h2h-tbody">
+                </tbody>
+            </table>
+        </div>'''
+
+TOURNAMENTS_BODY = '''            <div class="section">
+                <h2>Tournaments</h2>
+                <div id="tournaments-container"></div>
+            </div>'''
+
+GAMES_BODY = '''            <div class="section">
+                <h2>Game History</h2>
+                <div class="filter-container">
+                    <label for="player-filter">Filter by Player:</label>
+                    <input type="text" id="player-filter" placeholder="Enter player name">
+                    
+                    <label for="result-filter">Filter by Result:</label>
+                    <select id="result-filter">
+                        <option value="">All Results</option>
+                        <option value="1-0">White Wins</option>
+                        <option value="0-1">Black Wins</option>
+                        <option value="0.5-0.5">Draw</option>
+                    </select>
+                    
+                    <button onclick="applyFilters()">Apply Filters</button>
+                    <button onclick="clearFilters()">Clear Filters</button>
+                </div>
+                
+                <table id="games-table">
+                    <thead>
+                        <tr>
+                            <th onclick="sortGamesTable(0)">Game # <span class="sort-indicator"></span></th>
+                            <th onclick="sortGamesTable(1)">Date <span class="sort-indicator"></span></th>
+                            <th onclick="sortGamesTable(2)">White Player <span class="sort-indicator"></span></th>
+                            <th onclick="sortGamesTable(3)">Black Player <span class="sort-indicator"></span></th>
+                            <th onclick="sortGamesTable(4)">Result <span class="sort-indicator"></span></th>
+                        </tr>
+                    </thead>
+                    <tbody id="games-tbody">
+                    </tbody>
+                </table>
+            </div>'''
 
 
 def main():
@@ -1617,7 +1669,7 @@ def main():
     # Load games from file
     if rating_system.load_games_file('games.txt'):
         # Generate HTML output
-        rating_system.generate_html('index.html')
+        rating_system.generate_html('.')
         
         # Print summary
         print(f"\\nRating Summary:")
