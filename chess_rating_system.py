@@ -15,6 +15,7 @@ class ChessRatingSystem:
         self.initial_rating = initial_rating
         self.players = {}
         self.games = []
+        self.byes = []  # Full-point byes: {'player', 'date_raw', 'sequence'}
     
     def init_player(self, name):
         """Initialize a new player with default stats"""
@@ -245,6 +246,12 @@ class ChessRatingSystem:
         white_player = white_player.strip()
         black_player = black_player.strip()
         
+        # A bye ("Player - BYE 1-0 DATE") counts as a tournament win but is not a rated game
+        if black_player.upper() == 'BYE' or white_player.upper() == 'BYE':
+            player = white_player if black_player.upper() == 'BYE' else black_player
+            self.byes.append({'player': player, 'date_raw': date_str, 'sequence': game_number})
+            return None
+        
         # Initialize players if needed
         self.init_player(white_player)
         self.init_player(black_player)
@@ -416,8 +423,10 @@ class ChessRatingSystem:
             with open(filename, 'r') as f:
                 lines = f.readlines()
             
-            for i, line in enumerate(lines, 1):
-                self.process_game(line, i)
+            game_number = 1
+            for line in lines:
+                if self.process_game(line, game_number) is not None:
+                    game_number += 1
             
             print(f"Processed {len(self.games)} games for {len(self.players)} players")
             
@@ -430,12 +439,120 @@ class ChessRatingSystem:
         
         return True
     
+    def build_tournaments(self):
+        """Group dated games into tournaments (one per date) with round-by-round crosstables.
+        
+        Games are entered in chronological order, round by round, so a new round
+        starts whenever a player would appear a second time in the current round.
+        Tournaments are returned newest first.
+        """
+        # Each entry is (sort_key, players_involved, game_or_bye). Byes sort just
+        # before the game that follows them in the file.
+        by_date = {}
+        for game in self.games:
+            if game['date_raw']:
+                by_date.setdefault(game['date_raw'], []).append(
+                    ((game['game_number'], 1), (game['white_player'], game['black_player']), game))
+        for bye in self.byes:
+            if bye['date_raw']:
+                by_date.setdefault(bye['date_raw'], []).append(
+                    ((bye['sequence'], 0), (bye['player'],), bye))
+        
+        tournaments = []
+        for date_raw in sorted(by_date, reverse=True):
+            entries = sorted(by_date[date_raw], key=lambda e: e[0])
+            rounds = []
+            current, seen = [], set()
+            for _, involved, entry in entries:
+                if any(name in seen for name in involved):
+                    rounds.append(current)
+                    current, seen = [], set()
+                current.append(entry)
+                seen.update(involved)
+            rounds.append(current)
+            
+            standings = {}
+            def player_row(name):
+                if name not in standings:
+                    standings[name] = {
+                        'name': name, 'points': 0.0,
+                        'wins': 0, 'draws': 0, 'losses': 0,
+                        'rounds': [None] * len(rounds)
+                    }
+                return standings[name]
+            
+            def record(name, round_index, cell):
+                row = player_row(name)
+                row['rounds'][round_index] = cell
+                row['points'] += cell['score']
+                if cell['score'] == 1:
+                    row['wins'] += 1
+                elif cell['score'] == 0.5:
+                    row['draws'] += 1
+                else:
+                    row['losses'] += 1
+            
+            game_count = 0
+            for round_index, round_entries in enumerate(rounds):
+                for entry in round_entries:
+                    if 'white_player' not in entry:
+                        record(entry['player'], round_index,
+                               {'opponent': 'BYE', 'color': None, 'score': 1.0, 'bye': True})
+                        continue
+                    game_count += 1
+                    white_score, black_score = self.parse_game_result(entry['result'])
+                    record(entry['white_player'], round_index,
+                           {'opponent': entry['black_player'], 'color': 'W', 'score': white_score})
+                    record(entry['black_player'], round_index,
+                           {'opponent': entry['white_player'], 'color': 'B', 'score': black_score})
+            
+            self.add_tiebreaks(standings)
+            
+            tournaments.append({
+                'date': self.format_date(date_raw),
+                'date_raw': date_raw,
+                'rounds': len(rounds),
+                'games': game_count,
+                'players': len(standings),
+                'standings': sorted(standings.values(),
+                                    key=lambda r: (-r['points'], -r['median'], -r['solkoff'],
+                                                   -r['cumulative'], -r['cumulative_opp'], r['name']))
+            })
+        
+        return tournaments
+    
+    def add_tiebreaks(self, standings):
+        """Add USCF tiebreaks to each standing row, matching Coronate's implementation.
+        
+        Byes are excluded everywhere: a bye is not an opponent, and the bye round
+        is skipped when accumulating the running score.
+        """
+        def real_games(row):
+            return [cell for cell in row['rounds'] if cell and not cell.get('bye')]
+        
+        def opponent_scores(row):
+            return [standings[cell['opponent']]['points'] for cell in real_games(row)]
+        
+        for row in standings.values():
+            scores = sorted(opponent_scores(row))
+            row['median'] = sum(scores[1:-1])  # USCF 34E1: drop highest and lowest
+            row['solkoff'] = sum(scores)       # USCF 34E2
+            running, cumulative = 0.0, 0.0     # USCF 34E3
+            for cell in real_games(row):
+                running += cell['score']
+                cumulative += running
+            row['cumulative'] = cumulative
+        
+        for row in standings.values():         # USCF 34E4
+            row['cumulative_opp'] = sum(standings[cell['opponent']]['cumulative'] for cell in real_games(row))
+    
     def generate_html(self, output_filename='index.html'):
         """Generate HTML file with embedded data"""
         
         # Prepare data for JavaScript
         players_data = json.dumps(self.players)
         games_data = json.dumps(self.games)
+        tournaments_data = json.dumps(self.build_tournaments())
         
         html_content = f'''<!DOCTYPE html>
 <html lang="en">
@@ -559,6 +676,36 @@ class ChessRatingSystem:
             display: none;
         }}
         
+        .tournament {{
+            margin: 10px 0;
+        }}
+        
+        .tournament summary {{
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 1.1em;
+            padding: 10px;
+            background-color: #f0f0f0;
+            border-radius: 4px;
+        }}
+        
+        .crosstable th {{
+            cursor: default;
+        }}
+        
+        .crosstable .no-game {{
+            color: #999;
+            text-align: center;
+        }}
+        
+        .crosstable .bye {{
+            font-style: italic;
+        }}
+        
+        .crosstable .tiebreak {{
+            color: #666;
+        }}
+        
         .sort-indicator {{
             margin-left: 5px;
         }}
@@ -647,6 +794,11 @@ class ChessRatingSystem:
             </div>
             
             <div class="section">
+                <h2>Tournaments</h2>
+                <div id="tournaments-container"></div>
+            </div>
+            
+            <div class="section">
                 <h2>Game History</h2>
                 <div class="filter-container">
                     <label for="player-filter">Filter by Player:</label>
@@ -728,6 +880,7 @@ class ChessRatingSystem:
         // Embedded data from Python
         let players = {players_data};
         let games = {games_data};
+        let tournaments = {tournaments_data};
         let currentSort = {{ table: '', column: -1, ascending: true }};
         
         // HTML escape function to prevent XSS
@@ -780,6 +933,75 @@ class ChessRatingSystem:
                 
                 const winRateCell = row.insertCell();
                 winRateCell.textContent = winRate;
+            }});
+        }}
+        
+        // Format a score like 0.5 -> ½, 2.5 -> 2½
+        function formatScore(score) {{
+            const whole = Math.floor(score);
+            const half = score - whole === 0.5 ? '½' : '';
+            return whole === 0 && half ? half : `${{whole}}${{half}}`;
+        }}
+        
+        // Populate tournament crosstables (one collapsible block per date, newest first)
+        function populateTournaments() {{
+            const container = document.getElementById('tournaments-container');
+            container.innerHTML = '';
+            
+            tournaments.forEach((tournament, index) => {{
+                const details = document.createElement('details');
+                details.className = 'tournament';
+                details.open = index === 0;
+                
+                const summary = document.createElement('summary');
+                summary.textContent = `${{tournament.date}} — ${{tournament.players}} players, ${{tournament.rounds}} rounds, ${{tournament.games}} games`;
+                details.appendChild(summary);
+                
+                const table = document.createElement('table');
+                table.className = 'crosstable';
+                const headRow = table.createTHead().insertRow();
+                const roundLabels = Array.from({{length: tournament.rounds}}, (_, i) => `R${{i + 1}}`);
+                ['#', 'Player', ...roundLabels, 'Pts', 'MMed', 'Solk', 'Cum', 'CumOpp', 'W-D-L'].forEach(label => {{
+                    const th = document.createElement('th');
+                    th.textContent = label;
+                    headRow.appendChild(th);
+                }});
+                
+                const tbody = table.createTBody();
+                tournament.standings.forEach((standing, rank) => {{
+                    const row = tbody.insertRow();
+                    row.insertCell().textContent = rank + 1;
+                    
+                    const nameSpan = document.createElement('span');
+                    nameSpan.className = 'player-name';
+                    nameSpan.textContent = standing.name;
+                    nameSpan.onclick = () => showPlayerView(standing.name);
+                    row.insertCell().appendChild(nameSpan);
+                    
+                    standing.rounds.forEach(game => {{
+                        const cell = row.insertCell();
+                        if (game && game.bye) {{
+                            cell.textContent = `bye ${{formatScore(game.score)}}`;
+                            cell.className = 'bye';
+                        }} else if (game) {{
+                            cell.textContent = `${{game.opponent}} (${{game.color}}) ${{formatScore(game.score)}}`;
+                        }} else {{
+                            cell.textContent = '—';
+                            cell.className = 'no-game';
+                        }}
+                    }});
+                    
+                    row.insertCell().textContent = formatScore(standing.points);
+                    ['median', 'solkoff', 'cumulative', 'cumulative_opp'].forEach(key => {{
+                        const cell = row.insertCell();
+                        cell.textContent = formatScore(standing[key]);
+                        cell.className = 'tiebreak';
+                    }});
+                    row.insertCell().textContent = `${{standing.wins}}-${{standing.draws}}-${{standing.losses}}`;
+                }});
+                
+                details.appendChild(table);
+                container.appendChild(details);
             }});
         }}
         
@@ -1257,6 +1479,7 @@ class ChessRatingSystem:
         // Initialize the application
         window.addEventListener('DOMContentLoaded', function() {{
             populateRatingsTable();
+            populateTournaments();
             populateGamesTable();
         }});
     </script>
