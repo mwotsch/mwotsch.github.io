@@ -546,8 +546,54 @@ class ChessRatingSystem:
         for row in standings.values():         # USCF 34E4
             row['cumulative_opp'] = sum(standings[cell['opponent']]['cumulative'] for cell in real_games(row))
     
+    def compute_player_stats(self):
+        """Attach tournament results, win streaks and colour split to each player."""
+        for player in self.players.values():
+            player['tournament_stats'] = {'played': 0, 'wins': 0, 'podiums': 0,
+                                          'avg_finish': None, 'best': None, 'results': []}
+            player['streaks'] = {'current': 0, 'longest': 0}
+            player['color_stats'] = {'white': {'games': 0, 'points': 0.0},
+                                     'black': {'games': 0, 'points': 0.0}}
+        
+        # Tournament results (tournaments come newest first)
+        for tournament in self.build_tournaments():
+            for place, row in enumerate(tournament['standings'], 1):
+                rounds_played = sum(1 for cell in row['rounds'] if cell)
+                stats = self.players[row['name']]['tournament_stats']
+                stats['results'].append({
+                    'date': tournament['date'], 'date_raw': tournament['date_raw'],
+                    'place': place, 'players': tournament['players'],
+                    'points': row['points'], 'rounds': rounds_played,
+                    'wins': row['wins'], 'draws': row['draws'], 'losses': row['losses']
+                })
+        
+        for player in self.players.values():
+            stats = player['tournament_stats']
+            results = stats['results']
+            stats['played'] = len(results)
+            stats['wins'] = sum(1 for r in results if r['place'] == 1)
+            stats['podiums'] = sum(1 for r in results if r['place'] <= 3)
+            if results:
+                stats['avg_finish'] = round(sum(r['place'] for r in results) / len(results), 2)
+                # Highest score percentage; ties go to the more recent tournament
+                best = max(results, key=lambda r: r['points'] / r['rounds'])
+                stats['best'] = {'date': best['date'], 'points': best['points'], 'rounds': best['rounds']}
+        
+        # Streaks and colour split, in game order
+        for game in self.games:
+            white_score, black_score = self.parse_game_result(game['result'])
+            for name, color, score in ((game['white_player'], 'white', white_score),
+                                       (game['black_player'], 'black', black_score)):
+                player = self.players[name]
+                player['color_stats'][color]['games'] += 1
+                player['color_stats'][color]['points'] += score
+                streaks = player['streaks']
+                streaks['current'] = streaks['current'] + 1 if score == 1 else 0
+                streaks['longest'] = max(streaks['longest'], streaks['current'])
+    
     def generate_html(self, output_filename='index.html'):
         """Generate HTML file with embedded data"""
+        self.compute_player_stats()
         
         # Prepare data for JavaScript
         players_data = json.dumps(self.players)
@@ -706,6 +752,10 @@ class ChessRatingSystem:
             color: #666;
         }}
         
+        #tournament-results th {{
+            cursor: default;
+        }}
+        
         .sort-indicator {{
             margin-left: 5px;
         }}
@@ -846,6 +896,22 @@ class ChessRatingSystem:
             <div class="stats-summary">
                 <h3>Ratings</h3>
                 <div id="current-ratings"></div>
+            </div>
+            
+            <div class="stats-summary">
+                <h3>Tournaments</h3>
+                <div id="tournament-summary"></div>
+                <table id="tournament-results">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Place</th>
+                            <th>Score</th>
+                            <th>W-D-L</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tournament-results-tbody"></tbody>
+                </table>
             </div>
             
             <div class="stats-summary">
@@ -1280,6 +1346,51 @@ class ChessRatingSystem:
         }}
         
         // Show player detail view
+        function ordinal(n) {{
+            const suffix = (n % 100 >= 11 && n % 100 <= 13) ? 'th' : ['th', 'st', 'nd', 'rd'][n % 10] || 'th';
+            return `${{n}}${{suffix}}`;
+        }}
+        
+        function addStatLine(container, label, value) {{
+            const p = document.createElement('p');
+            const strong = document.createElement('strong');
+            strong.textContent = `${{label}}: `;
+            p.appendChild(strong);
+            p.appendChild(document.createTextNode(value));
+            container.appendChild(p);
+        }}
+        
+        // Tournament summary, best result, streaks, colour split and per-tournament results
+        function populateTournamentStats(player) {{
+            const summary = document.getElementById('tournament-summary');
+            summary.innerHTML = '';
+            const stats = player.tournament_stats;
+            const table = document.getElementById('tournament-results');
+            const tbody = document.getElementById('tournament-results-tbody');
+            tbody.innerHTML = '';
+            
+            if (stats.played === 0) {{
+                summary.innerHTML = '<p>No tournaments played yet.</p>';
+                table.classList.add('hidden');
+                return;
+            }}
+            table.classList.remove('hidden');
+            
+            addStatLine(summary, 'Tournaments', `${{stats.played}} played · ${{stats.wins}} won · ${{stats.podiums}} podiums · avg finish ${{stats.avg_finish}}`);
+            addStatLine(summary, 'Best result', `${{formatScore(stats.best.points)}}/${{stats.best.rounds}} on ${{stats.best.date}}`);
+            addStatLine(summary, 'Win streak', `${{player.streaks.current}} current · ${{player.streaks.longest}} longest`);
+            const white = player.color_stats.white, black = player.color_stats.black;
+            addStatLine(summary, 'By colour', `White ${{formatScore(white.points)}}/${{white.games}} · Black ${{formatScore(black.points)}}/${{black.games}}`);
+            
+            stats.results.forEach(result => {{
+                const row = tbody.insertRow();
+                row.insertCell().textContent = result.date;
+                row.insertCell().textContent = `${{ordinal(result.place)}} of ${{result.players}}`;
+                row.insertCell().textContent = `${{formatScore(result.points)}}/${{result.rounds}}`;
+                row.insertCell().textContent = `${{result.wins}}-${{result.draws}}-${{result.losses}}`;
+            }});
+        }}
+        
         function showPlayerView(playerName) {{
             const player = players[playerName];
             if (!player) return;
@@ -1427,6 +1538,8 @@ class ChessRatingSystem:
             
             // Add grid to container
             currentRatingsDiv.appendChild(ratingsGrid);
+            
+            populateTournamentStats(player);
             
             // Populate biggest wins section
             const biggestWinsDiv = document.getElementById('biggest-wins');

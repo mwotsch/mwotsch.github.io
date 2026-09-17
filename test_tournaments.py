@@ -167,6 +167,74 @@ class ByeInTournamentTest(unittest.TestCase):
         self.assertEqual(row(self.t, 'B')['cumulative_opp'], a['cumulative'] + c['cumulative'])
 
 
+class PlayerStatsTest(unittest.TestCase):
+    def setUp(self):
+        self.rs = system_with([
+            # Tournament 1: A wins 2/2, B 1/2 (2nd), C 0/2 (3rd)
+            'A - B 1-0 20260101',
+            'B - C 1-0 20260101',
+            'A - C 1-0 20260101',
+            # Tournament 2: B wins 1/1, A 0/1
+            'B - A 1-0 20260201',
+        ])
+        self.rs.compute_player_stats()
+        self.stats = {n: p['tournament_stats'] for n, p in self.rs.players.items()}
+
+    def test_results_list_newest_first_with_place(self):
+        self.assertEqual(self.stats['A']['results'], [
+            {'date': 'Feb 1, 2026', 'date_raw': '20260201', 'place': 2, 'players': 2,
+             'points': 0.0, 'rounds': 1, 'wins': 0, 'draws': 0, 'losses': 1},
+            {'date': 'Jan 1, 2026', 'date_raw': '20260101', 'place': 1, 'players': 3,
+             'points': 2.0, 'rounds': 2, 'wins': 2, 'draws': 0, 'losses': 0},
+        ])
+
+    def test_summary_counts(self):
+        a, b, c = self.stats['A'], self.stats['B'], self.stats['C']
+        self.assertEqual((a['played'], a['wins'], a['podiums'], a['avg_finish']), (2, 1, 2, 1.5))
+        self.assertEqual((b['played'], b['wins'], b['podiums'], b['avg_finish']), (2, 1, 2, 1.5))
+        self.assertEqual((c['played'], c['wins'], c['podiums'], c['avg_finish']), (1, 0, 1, 3.0))
+
+    def test_best_result_is_highest_score_percentage(self):
+        self.assertEqual(self.stats['A']['best'], {'date': 'Jan 1, 2026', 'points': 2.0, 'rounds': 2})
+        self.assertEqual(self.stats['B']['best'], {'date': 'Feb 1, 2026', 'points': 1.0, 'rounds': 1})
+        self.assertEqual(self.stats['C']['best'], {'date': 'Jan 1, 2026', 'points': 0.0, 'rounds': 2})
+
+    def test_best_result_tie_goes_to_most_recent(self):
+        rs = system_with(['A - B 1-0 20260101', 'A - B 1-0 20260301'])
+        rs.compute_player_stats()
+        self.assertEqual(rs.players['A']['tournament_stats']['best']['date'], 'Mar 1, 2026')
+
+    def test_player_without_dated_games_has_empty_stats(self):
+        rs = system_with(['X - Y 1-0'])
+        rs.compute_player_stats()
+        s = rs.players['X']['tournament_stats']
+        self.assertEqual((s['played'], s['wins'], s['podiums'], s['avg_finish'], s['best'], s['results']),
+                         (0, 0, 0, None, None, []))
+
+    def test_bye_counts_toward_tournament_points_and_rounds(self):
+        rs = system_with(['A - BYE 1-0 20260101', 'A - B 1-0 20260101'])
+        rs.compute_player_stats()
+        self.assertEqual(rs.players['A']['tournament_stats']['best'], {'date': 'Jan 1, 2026', 'points': 2.0, 'rounds': 2})
+
+
+class StreakAndColorTest(unittest.TestCase):
+    def test_win_streaks(self):
+        # A: W W D W W W L W  -> longest 3, current 1
+        rs = system_with([
+            'A - B 1-0', 'B - A 0-1', 'A - B 0.5-0.5', 'A - B 1-0',
+            'B - A 0-1', 'A - B 1-0', 'A - B 0-1', 'B - A 0-1',
+        ])
+        rs.compute_player_stats()
+        self.assertEqual(rs.players['A']['streaks'], {'current': 1, 'longest': 3})
+        self.assertEqual(rs.players['B']['streaks'], {'current': 0, 'longest': 1})
+
+    def test_color_split(self):
+        rs = system_with(['A - B 1-0', 'A - B 0.5-0.5', 'B - A 1-0', 'B - A 0-1', 'B - A 0-1'])
+        rs.compute_player_stats()
+        self.assertEqual(rs.players['A']['color_stats'], {
+            'white': {'games': 2, 'points': 1.5}, 'black': {'games': 3, 'points': 2.0}})
+
+
 class GenerateHtmlTest(unittest.TestCase):
     def test_embeds_tournaments_and_section(self):
         import os, tempfile
@@ -179,6 +247,8 @@ class GenerateHtmlTest(unittest.TestCase):
         self.assertIn('<h2>Tournaments</h2>', html)
         self.assertIn('id="tournaments-container"', html)
         self.assertIn("'MMed', 'Solk', 'Cum', 'CumOpp'", html)
+        self.assertIn('"tournament_stats": {"played": 1, "wins": 1', html)
+        self.assertIn('id="tournament-results"', html)
 
 
 if __name__ == '__main__':
