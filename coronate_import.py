@@ -24,16 +24,36 @@ DUMMY_ID = '________DUMMY________'
 CLUB_TZ = ZoneInfo('America/New_York')
 RESULTS = {'whiteWon': '1-0', 'blackWon': '0-1', 'draw': '0.5-0.5'}
 
+# Coronate requires a last name, so players known by a shorthand are stored with
+# a dash. Such a name carries no initial to abbreviate.
+PLACEHOLDER_LAST_NAMES = {'', '-', '--', '.', 'n/a'}
+
+# A few players are recorded under a different name in Coronate than in
+# games.txt. Keys are 'firstName lastName' exactly as Coronate stores them.
+ALIASES = {
+    'Dr. C -': 'Chris C.',
+    'Dr. S -': 'Dr. S.',
+}
+
 
 class ImportError_(Exception):
     pass
 
 
 def display_name(player):
-    """Coronate stores first/last names; games.txt uses 'First L.'"""
+    """Coronate stores first/last names; games.txt uses 'First L.'
+
+    ALIASES wins where the two sources disagree, and a placeholder last name is
+    treated as no last name rather than abbreviated to a stray initial.
+    """
     first = player['firstName'].strip()
     last = player['lastName'].strip()
-    return f"{first} {last[0]}." if last else first
+    alias = ALIASES.get(f'{first} {last}'.strip())
+    if alias:
+        return alias
+    if last.lower() in PLACEHOLDER_LAST_NAMES:
+        return first
+    return f'{first} {last[0]}.'
 
 
 def name_map(export):
@@ -78,7 +98,12 @@ def games_lines(export, tournament_name, date=None):
             white, black, result = match['whiteId'], match['blackId'], match['result']
             if DUMMY_ID in (white, black):
                 player = names[black if white == DUMMY_ID else white]
-                lines.append(f'{player} - BYE 1-0 {date}')
+                # An unplayed bye ('aborted') awarded no point, so it is not a bye at all.
+                if result in RESULTS:
+                    lines.append(f'{player} - BYE 1-0 {date}')
+                else:
+                    notes.append(f'Round {round_number}: {player}\'s bye has result '
+                                 f'"{result}", skipped')
             elif result in RESULTS:
                 lines.append(f'{names[white]} - {names[black]} {RESULTS[result]} {date}')
             else:
@@ -93,11 +118,13 @@ def list_tournaments(export):
         rounds = tournament['roundList']
         matches = [m for r in rounds for m in r]
         byes = sum(1 for m in matches if DUMMY_ID in (m['whiteId'], m['blackId']))
+        # playerIds is not always kept up to date, so count who actually played.
+        played = {pid for m in matches for pid in (m['whiteId'], m['blackId'])} - {DUMMY_ID}
         summary.append({
             'name': tournament['name'],
             'date': club_date(tournament['date']),
             'rounds': len(rounds),
-            'players': len(tournament['playerIds']),
+            'players': len(played),
             'games': len(matches) - byes,
             'byes': byes,
         })

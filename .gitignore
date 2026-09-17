@@ -3,3 +3,5 @@ PLANNING-DOC.md
 .claude/settings.local.json
 .serena/project.yml
 __pycache__/
+coronate-*.json
+*:Zone.Identifier
