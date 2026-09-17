@@ -96,5 +96,52 @@ class ListAndCheckTest(unittest.TestCase):
             self.assertEqual(ci.known_names(path), {'Marco W.', 'Kuba K.', 'Ari M.'})
 
 
+class CheckTest(unittest.TestCase):
+    """EXPORT's 'Club Night' (20260916) yields:
+         Marco W. - Kuba K. 1-0 / Nick H. - BYE 1-0 / Kuba K. - Nick H. 0.5-0.5 / Marco W. - BYE 1-0
+    """
+    def check_with(self, games_text):
+        import os, tempfile
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, 'games.txt')
+            open(path, 'w').write(games_text)
+            return ci.check(EXPORT, path)
+
+    def test_matching_tournament_has_no_findings(self):
+        report = self.check_with(
+            'Marco W. - Kuba K. 1-0 20260916\n'
+            'Nick H. - BYE 1-0 20260916\n'
+            'Kuba K. - Nick H. 0.5-0.5 20260916\n'
+            'Marco W. - BYE 1-0 20260916\n')
+        self.assertEqual(report['tournaments'], [
+            {'name': 'Club Night', 'date': '20260916', 'in_games_txt': True, 'findings': []}])
+        self.assertEqual(report['uncovered_dates'], [])
+
+    def test_reports_missing_byes_and_typos_with_suggestion(self):
+        report = self.check_with(
+            'Marco W. - Kuna K. 1-0 20260916\n'
+            'Kuna K. - Nick H. 0.5-0.5 20260916\n')
+        findings = report['tournaments'][0]['findings']
+        self.assertIn("name 'Kuba K.' not in games.txt (closest: 'Kuna K.')", findings)
+        self.assertIn('missing bye: Nick H. - BYE 1-0 20260916', findings)
+        self.assertIn('missing bye: Marco W. - BYE 1-0 20260916', findings)
+        self.assertIn('missing game: Marco W. - Kuba K. 1-0 20260916', findings)
+        self.assertIn('extra game in games.txt: Marco W. - Kuna K. 1-0 20260916', findings)
+
+    def test_reports_order_difference(self):
+        report = self.check_with(
+            'Kuba K. - Nick H. 0.5-0.5 20260916\n'
+            'Marco W. - Kuba K. 1-0 20260916\n'
+            'Nick H. - BYE 1-0 20260916\n'
+            'Marco W. - BYE 1-0 20260916\n')
+        self.assertEqual(report['tournaments'][0]['findings'],
+                         ['game order differs from Coronate (round reconstruction may be wrong)'])
+
+    def test_reports_tournament_absent_from_games_txt_and_uncovered_dates(self):
+        report = self.check_with('Marco W. - Kuba K. 1-0 20260101\n')
+        self.assertEqual(report['tournaments'][0]['in_games_txt'], False)
+        self.assertEqual(report['uncovered_dates'], ['20260101'])
+
+
 if __name__ == '__main__':
     unittest.main()

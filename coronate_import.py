@@ -5,6 +5,7 @@ Convert a Coronate export (Options -> "Export data to a file") into games.txt li
     python3 coronate_import.py coronate-2026-09-16.json                      # list tournaments
     python3 coronate_import.py coronate-2026-09-16.json --tournament "Name"  # print games.txt lines
     python3 coronate_import.py coronate-2026-09-16.json --tournament "Name" --date 20260916
+    python3 coronate_import.py coronate-2026-09-16.json --check                # diff against games.txt
 
 Lines are printed to stdout in Coronate's round order, byes as "Name - BYE 1-0 DATE".
 Names that don't already appear in games.txt are reported on stderr so typos and
@@ -12,6 +13,7 @@ new players are caught before the lines are appended.
 """
 
 import argparse
+import difflib
 import json
 import re
 import sys
@@ -125,18 +127,96 @@ def unknown_names(lines, known):
     return seen
 
 
+def games_txt_by_date(games_path):
+    """games.txt lines grouped by date, in file order (undated lines are ignored)."""
+    by_date = {}
+    with open(games_path) as f:
+        for line in f:
+            line = line.strip()
+            if LINE_RE.match(line) and line[-8:].isdigit():
+                by_date.setdefault(line[-8:], []).append(line)
+    return by_date
+
+
+def is_bye(line):
+    return LINE_RE.match(line).group(2).upper() == 'BYE'
+
+
+def check(export, games_path):
+    """Compare every tournament in the export with the same date in games.txt.
+    
+    Returns {'tournaments': [{name, date, in_games_txt, findings}], 'uncovered_dates': [...]}.
+    """
+    by_date = games_txt_by_date(games_path)
+    known = known_names(games_path)
+    report = {'tournaments': [], 'uncovered_dates': []}
+    covered = set()
+    
+    for tournament in export['tournaments'].values():
+        lines, _ = games_lines(export, tournament['name'])
+        date = club_date(tournament['date'])
+        entry = {'name': tournament['name'], 'date': date,
+                 'in_games_txt': date in by_date, 'findings': []}
+        report['tournaments'].append(entry)
+        if not entry['in_games_txt']:
+            continue
+        covered.add(date)
+        findings = entry['findings']
+        existing = by_date[date]
+        
+        for name in unknown_names(lines, known):
+            closest = difflib.get_close_matches(name, known, n=1)
+            hint = f" (closest: '{closest[0]}')" if closest else ''
+            findings.append(f"name '{name}' not in games.txt{hint}")
+        
+        for line in lines:
+            if line not in existing:
+                findings.append(f'missing {"bye" if is_bye(line) else "game"}: {line}')
+        for line in existing:
+            if line not in lines:
+                findings.append(f'extra {"bye" if is_bye(line) else "game"} in games.txt: {line}')
+        
+        export_games = [l for l in lines if not is_bye(l)]
+        existing_games = [l for l in existing if not is_bye(l)]
+        if sorted(export_games) == sorted(existing_games) and export_games != existing_games:
+            findings.append('game order differs from Coronate (round reconstruction may be wrong)')
+    
+    report['uncovered_dates'] = sorted(set(by_date) - covered)
+    return report
+
+
+def print_check(report):
+    for t in report['tournaments']:
+        if not t['in_games_txt']:
+            print(f"{t['date']}  {t['name']!r}: no games on this date in games.txt")
+        elif not t['findings']:
+            print(f"{t['date']}  {t['name']!r}: OK")
+        else:
+            print(f"{t['date']}  {t['name']!r}:")
+            for finding in t['findings']:
+                print(f'    {finding}')
+    if report['uncovered_dates']:
+        print(f"Dates in games.txt with no tournament in the export: {', '.join(report['uncovered_dates'])}")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('export', help='Coronate JSON export')
     parser.add_argument('--tournament', help='name of the tournament to convert')
     parser.add_argument('--date', help='override the date (YYYYMMDD)')
     parser.add_argument('--games', default='games.txt', help='games.txt to check names against')
+    parser.add_argument('--check', action='store_true',
+                        help='compare every tournament in the export with games.txt')
     args = parser.parse_args()
     
     with open(args.export) as f:
         export = json.load(f)
     
     try:
+        if args.check:
+            print_check(check(export, args.games))
+            return 0
+        
         if not args.tournament:
             for t in list_tournaments(export):
                 print(f"{t['date']}  {t['name']!r}: {t['rounds']} rounds, {t['players']} players, "
