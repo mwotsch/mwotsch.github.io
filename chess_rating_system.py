@@ -7,27 +7,40 @@ Implements ELO rating system with interactive HTML output
 import math
 import json
 import os
+from collections import Counter
 
 
 class ChessRatingSystem:
-    def __init__(self, k_factor=32, initial_rating=1200):
-        self.k_factor = k_factor
+    def __init__(self, k_factor=None, initial_rating=1200):
+        self.k_factor = k_factor  # None follows FIDE's schedule; a number overrides it
         self.initial_rating = initial_rating
         self.players = {}
         self.games = []
         self.byes = []  # Full-point byes: {'player', 'date_raw', 'sequence'}
+        self.tau = 0.5  # Glicko-2 system constant, constrains volatility change
+        self.glicko_convergence = 0.000001  # Convergence tolerance for the volatility solver
+        self.uscf_event = []  # Games buffered for the current USCF event
+        self.uscf_event_date = None
     
     def init_player(self, name):
         """Initialize a new player with default stats"""
         if name not in self.players:
             self.players[name] = {
                 'name': name,
-                'rating': self.initial_rating,
+                'rating': self.initial_rating,  # Published ELO, the exact rating rounded
+                'elo_exact': float(self.initial_rating),  # FIDE keeps ratings as floats
+                'elo_k10': False,  # Set once a published rating reaches 2400 (FIDE 8.3.3)
                 'glicko_rating': 1200,  # Glicko-2 starting at 1200
                 'glicko_deviation': 350,  # Initial rating deviation
                 'glicko_volatility': 0.06,  # Initial volatility
-                'uscf_rating': 1200,  # USCF starting rating
-                'uscf_games': 0,  # Track games for USCF K-factor adjustment
+                'uscf_rating': self.initial_rating,  # USCF rating, rounded for display
+                'uscf_exact': float(self.initial_rating),  # USCF keeps ratings as floats
+                'uscf_games': 0,  # N: rated games before the current event
+                'uscf_wins': 0,  # Rated games won, for the personal absolute floor
+                'uscf_draws': 0,  # Rated games drawn, for the personal absolute floor
+                'uscf_losses': 0,  # Rated games lost, for the all-losses special case
+                'uscf_events': 0,  # Events of three or more rated games
+                'uscf_peak': None,  # Highest established rating, for the rating floor
                 'games': 0,
                 'wins': 0,
                 'draws': 0,
@@ -40,14 +53,38 @@ class ChessRatingSystem:
                 'lowest_elo': self.initial_rating,
                 'highest_glicko': 1200,
                 'lowest_glicko': 1200,
-                'highest_uscf': 1200,
-                'lowest_uscf': 1200
+                'highest_uscf': self.initial_rating,
+                'lowest_uscf': self.initial_rating
             }
     
-    def calculate_elo_change(self, rating_a, rating_b, score_a):
+    def get_elo_k_factor(self, player):
+        """FIDE development coefficient (Rating Regulations 8.3.3).
+
+        FIDE also gives K = 40 to players under 18 rated below 2300; games.txt
+        carries no birth dates, so that case cannot be applied here.
+        """
+        if self.k_factor is not None:
+            return self.k_factor
+        if player['elo_k10']:
+            return 10
+        if player['games'] < 30:
+            return 40
+        return 20
+
+    def calculate_elo_change(self, rating_a, rating_b, score_a, k_factor):
         """Calculate ELO rating change for player A"""
-        expected_a = 1 / (1 + math.pow(10, (rating_b - rating_a) / 400))
-        return round(self.k_factor * (score_a - expected_a))
+        difference = rating_b - rating_a
+        if rating_a < 2650:
+            # FIDE 8.3.1: a gap of more than 400 points counts as 400
+            difference = max(-400.0, min(400.0, difference))
+        expected_a = 1 / (1 + math.pow(10, difference / 400))
+        return k_factor * (score_a - expected_a)
+
+    def publish_elo_rating(self, player):
+        """Round the exact rating for publication and latch the 2400 threshold."""
+        player['rating'] = round(player['elo_exact'])
+        if player['rating'] >= 2400:
+            player['elo_k10'] = True
     
     def glicko2_scale(self, rating):
         """Convert rating to Glicko-2 scale"""
@@ -63,40 +100,249 @@ class ChessRatingSystem:
     
     def glicko2_e(self, mu, mu_j, phi_j):
         """Expected score function for Glicko-2"""
-        return 1 / (1 + math.exp(-self.glicko2_g(phi_j) * (mu - mu_j)))
-    
-    def get_uscf_k_factor(self, player):
-        """Get USCF K-factor based on games played and rating"""
-        if player['uscf_games'] < 20:
-            return 40  # Provisional rating period
-        elif player['uscf_rating'] < 2100:
-            return 32  # Regular players
+        expected = 1 / (1 + math.exp(-self.glicko2_g(phi_j) * (mu - mu_j)))
+        # At extreme rating gaps this reaches exactly 0.0 or 1.0 in floating point,
+        # and the variance 1 / (g^2 * E * (1 - E)) would then divide by zero.
+        return min(max(expected, 1e-12), 1 - 1e-12)
+
+    def glicko2_volatility(self, phi, v, delta, sigma):
+        """Solve for the new volatility sigma' (Glicko-2 step 5).
+
+        Finds the root of Glickman's f(x) with the Illinois algorithm, exactly as
+        described in "Example of the Glicko-2 system".
+        """
+        alpha = math.log(sigma * sigma)
+
+        def f(x):
+            exp_x = math.exp(x)
+            numerator = exp_x * (delta * delta - phi * phi - v - exp_x)
+            denominator = 2 * (phi * phi + v + exp_x) ** 2
+            return numerator / denominator - (x - alpha) / (self.tau * self.tau)
+
+        # Bracket the root
+        x_a = alpha
+        if delta * delta > phi * phi + v:
+            x_b = math.log(delta * delta - phi * phi - v)
         else:
-            return 24  # Masters and above
+            k = 1
+            while f(alpha - k * self.tau) < 0:
+                k += 1
+            x_b = alpha - k * self.tau
+
+        f_a, f_b = f(x_a), f(x_b)
+        while abs(x_b - x_a) > self.glicko_convergence:
+            x_c = x_a + (x_a - x_b) * f_a / (f_b - f_a)
+            f_c = f(x_c)
+            if f_c * f_b <= 0:
+                x_a, f_a = x_b, f_b
+            else:
+                f_a = f_a / 2
+            x_b, f_b = x_c, f_c
+
+        return math.exp(x_a / 2)
     
-    def calculate_uscf_change(self, rating_a, rating_b, score_a, k_factor):
-        """Calculate USCF rating change for player A"""
-        expected_a = 1 / (1 + math.pow(10, (rating_b - rating_a) / 400))
-        return round(k_factor * (score_a - expected_a))
-    
-    def update_uscf_ratings(self, player_a, player_b, score_a):
-        """Update USCF ratings for both players"""
-        # Get K-factors
-        k_a = self.get_uscf_k_factor(player_a)
-        k_b = self.get_uscf_k_factor(player_b)
+    # --- USCF rating system ---------------------------------------------
+    # Glickman & Doan, "The US Chess Rating system" (rating.system.pdf).
+    # USCF rates a whole event at once, so games are buffered and the update runs
+    # when the event closes rather than after each game.
+    USCF_ABSOLUTE_FLOOR = 100        # Section 5
+    USCF_BONUS_MULTIPLIER = 10       # B, effective January 1, 2025 (Section 4.2)
+    USCF_SPECIAL_TOLERANCE = 1e-7    # epsilon in Section 4.1
+    USCF_SPECIAL_CAP = 2700          # Section 4.1
+    USCF_ESTABLISHED_GAMES = 25      # A rating is "established" above this (Section 1)
+
+    def uscf_effective_games(self, player, games=None):
+        """Section 3: the effective number of games N', never more than 50."""
+        rating = player['uscf_exact']
+        if rating <= 2355:
+            n_star = 50 / math.sqrt(0.662 + 0.00000739 * (2569 - rating) ** 2)
+        else:
+            n_star = 50.0
+        return min(player['uscf_games'] if games is None else games, n_star)
+
+    def uscf_pwe(self, rating, opponent_rating):
+        """Section 4.1: the provisional winning expectancy."""
+        if rating <= opponent_rating - 400:
+            return 0.0
+        if rating >= opponent_rating + 400:
+            return 1.0
+        return 0.5 + (rating - opponent_rating) / 800
+
+    def uscf_uses_special(self, player):
+        """Section 4: eight or fewer games, or a career of all wins or all losses."""
+        played = player['uscf_games']
+        if played <= 8:
+            return True
+        return player['uscf_wins'] == played or player['uscf_losses'] == played
+
+    def uscf_special_rating(self, player, opponents, score, games=None):
+        """Section 4.1: the rating at which expected score equals attained score.
+
+        The objective is piecewise linear in the rating, so it is solved by walking
+        between its knots rather than by a fixed-step iteration.
+        """
+        prior = player['uscf_exact']
+        played = player['uscf_games']
+        effective = self.uscf_effective_games(player, games)
+        epsilon = self.USCF_SPECIAL_TOLERANCE
         
-        # Calculate changes
-        change_a = self.calculate_uscf_change(player_a['uscf_rating'], player_b['uscf_rating'], score_a, k_a)
-        change_b = self.calculate_uscf_change(player_b['uscf_rating'], player_a['uscf_rating'], 1 - score_a, k_b)
+        if played > 0 and player['uscf_wins'] == played:
+            prior_adj, score_adj = prior - 400, score + effective
+        elif played > 0 and player['uscf_losses'] == played:
+            prior_adj, score_adj = prior + 400, score
+        else:
+            prior_adj, score_adj = prior, score + effective / 2
         
-        # Update ratings
-        player_a['uscf_rating'] += change_a
-        player_b['uscf_rating'] += change_b
+        def objective(rating):
+            total = effective * self.uscf_pwe(rating, prior_adj)
+            total += sum(self.uscf_pwe(rating, opponent) for opponent in opponents)
+            return total - score_adj
         
-        # Update game counts for K-factor tracking
-        player_a['uscf_games'] += 1
-        player_b['uscf_games'] += 1
-    
+        anchors = [prior_adj] + list(opponents)
+        knots = sorted({r - 400 for r in anchors} | {r + 400 for r in anchors})
+        
+        estimate = prior_adj
+        for _ in range(1000):  # guard; the walk below always moves towards the root
+            value = objective(estimate)
+            previous = estimate
+            if value > epsilon:
+                below = [knot for knot in knots if knot < estimate]
+                if not below:
+                    break
+                z_a = max(below)
+                f_a = objective(z_a)
+                if abs(value - f_a) < epsilon:
+                    estimate = z_a
+                else:
+                    step = estimate - value * (estimate - z_a) / (value - f_a)
+                    estimate = z_a if step < z_a else step
+            elif value < -epsilon:
+                above = [knot for knot in knots if knot > estimate]
+                if not above:
+                    break
+                z_b = min(above)
+                f_b = objective(z_b)
+                if abs(f_b - value) < epsilon:
+                    estimate = z_b
+                else:
+                    step = estimate - value * (z_b - estimate) / (f_b - value)
+                    estimate = z_b if step > z_b else step
+            else:
+                # Step 4: on a flat stretch of the objective every rating in the
+                # stretch fits the score, so take the one closest to the prior.
+                nearby = sum(1 for opponent in opponents if abs(estimate - opponent) < 400)
+                if abs(estimate - prior_adj) < 400:
+                    nearby += 1
+                if nearby == 0:
+                    below = [knot for knot in knots if knot <= estimate]
+                    above = [knot for knot in knots if knot >= estimate]
+                    z_a = max(below) if below else estimate
+                    z_b = min(above) if above else estimate
+                    estimate = min(max(prior, z_a), z_b)
+                break
+            if estimate == previous:
+                break
+        
+        return min(estimate, self.USCF_SPECIAL_CAP)
+
+    def uscf_standard_rating(self, player, opponents, score, times_faced):
+        """Section 4.2: K = 800 / (N' + m), with the bonus term where it applies."""
+        prior = player['uscf_exact']
+        played = len(opponents)
+        k_factor = 800 / (self.uscf_effective_games(player) + played)
+        expected = sum(1 / (1 + math.pow(10, (opponent - prior) / 400)) for opponent in opponents)
+        change = k_factor * (score - expected)
+        
+        most_faced = max(times_faced) if times_faced else 0
+        earns_bonus = (played > 3 and most_faced <= 2) or (played == 3 and most_faced <= 1)
+        if earns_bonus:
+            rounds = max(played, 4)  # three-round events count as four here
+            change += max(0.0, change - self.USCF_BONUS_MULTIPLIER * math.sqrt(rounds))
+        return prior + change
+
+    def uscf_floor(self, player):
+        """Section 5: the personal absolute floor, raised by the player's peak."""
+        floor = min(100 + 4 * player['uscf_wins'] + 2 * player['uscf_draws']
+                    + player['uscf_events'], 150)
+        peak = player['uscf_peak']
+        if peak is not None:
+            candidate = round(peak) - 200
+            if candidate >= 1200:  # the higher floors run 1200, 1300, ... 2100
+                floor = max(floor, min(2100, int(candidate // 100) * 100))
+        return max(self.USCF_ABSOLUTE_FLOOR, floor)
+
+    def queue_uscf_game(self, white_player, black_player, white_score, date_raw):
+        """Buffer a game for its USCF event, closing the previous event first."""
+        if self.uscf_event and (date_raw is None or date_raw != self.uscf_event_date):
+            self.flush_uscf_event()
+        self.uscf_event_date = date_raw
+        self.uscf_event.append((white_player, black_player, white_score))
+        if date_raw is None:  # an undated game is an event of its own
+            self.flush_uscf_event()
+
+    def flush_uscf_event(self):
+        """Run the five-step event algorithm over the games buffered so far."""
+        event, self.uscf_event = self.uscf_event, []
+        self.uscf_event_date = None
+        if not event:
+            return
+        
+        results = {}
+        for white_player, black_player, white_score in event:
+            results.setdefault(white_player, []).append((black_player, white_score))
+            results.setdefault(black_player, []).append((white_player, 1 - white_score))
+        
+        scores = {name: sum(score for _, score in games) for name, games in results.items()}
+        
+        # Step 3: a first estimate for players who have never been rated. It is only
+        # used as a measure of their strength while rating everyone else.
+        pre_event = {name: self.players[name]['uscf_exact'] for name in results}
+        ratings = dict(pre_event)
+        for name, games in results.items():
+            if self.players[name]['uscf_games'] == 0:
+                opponents = [pre_event[opponent] for opponent, _ in games]
+                estimate = self.uscf_special_rating(self.players[name], opponents, scores[name], games=1)
+                ratings[name] = max(float(self.USCF_ABSOLUTE_FLOOR), estimate)
+        
+        # Steps 4 and 5: rate everyone against the opponents' pre-event ratings, then
+        # rate everyone again against the intermediate ratings step 4 produced. Each
+        # player's own rating going into both steps is their pre-event rating.
+        for _ in range(2):
+            updated = {}
+            for name, games in results.items():
+                player = self.players[name]
+                opponents = [ratings[opponent] for opponent, _ in games]
+                if self.uscf_uses_special(player):
+                    new_rating = self.uscf_special_rating(player, opponents, scores[name])
+                else:
+                    times_faced = Counter(opponent for opponent, _ in games).values()
+                    new_rating = self.uscf_standard_rating(player, opponents, scores[name],
+                                                           list(times_faced))
+                updated[name] = max(float(self.USCF_ABSOLUTE_FLOOR), new_rating)
+            ratings = updated
+        
+        for name, games in results.items():
+            player = self.players[name]
+            player['uscf_games'] += len(games)
+            player['uscf_wins'] += sum(1 for _, score in games if score == 1.0)
+            player['uscf_draws'] += sum(1 for _, score in games if score == 0.5)
+            player['uscf_losses'] += sum(1 for _, score in games if score == 0.0)
+            if len(games) >= 3:
+                player['uscf_events'] += 1
+            
+            player['uscf_exact'] = max(ratings[name], float(self.uscf_floor(player)))
+            player['uscf_rating'] = round(player['uscf_exact'])
+            if player['uscf_games'] > self.USCF_ESTABLISHED_GAMES:
+                peak = player['uscf_peak']
+                player['uscf_peak'] = max(peak, player['uscf_exact']) if peak else player['uscf_exact']
+            
+            player['highest_uscf'] = max(player['highest_uscf'], player['uscf_rating'])
+            player['lowest_uscf'] = min(player['lowest_uscf'], player['uscf_rating'])
+            # The rating only moves when the event closes, so the player's last game
+            # of the event is the one that carries the new rating.
+            if player.get('rating_history'):
+                player['rating_history'][-1]['uscf'] = player['uscf_rating']
+
     def update_biggest_wins(self, player, win_record):
         """Update player's biggest wins list"""
         player['biggest_wins'].append(win_record)
@@ -124,12 +370,6 @@ class ChessRatingSystem:
             player['highest_glicko'] = player['glicko_rating']
         if player['glicko_rating'] < player['lowest_glicko']:
             player['lowest_glicko'] = player['glicko_rating']
-        
-        # USCF extremes
-        if player['uscf_rating'] > player['highest_uscf']:
-            player['highest_uscf'] = player['uscf_rating']
-        if player['uscf_rating'] < player['lowest_uscf']:
-            player['lowest_uscf'] = player['uscf_rating']
     
     def update_glicko2_ratings(self, player_a, player_b, score_a):
         """Update Glicko-2 ratings for both players"""
@@ -141,9 +381,6 @@ class ChessRatingSystem:
         sigma_a = player_a['glicko_volatility']
         sigma_b = player_b['glicko_volatility']
         
-        # System constant
-        tau = 0.5
-        
         # Update player A
         g_b = self.glicko2_g(phi_b)
         e_ab = self.glicko2_e(mu_a, mu_b, phi_b)
@@ -151,9 +388,8 @@ class ChessRatingSystem:
         v_a = 1 / (g_b * g_b * e_ab * (1 - e_ab))
         delta_a = v_a * g_b * (score_a - e_ab)
         
-        # Update volatility (simplified)
-        sigma_a_new = math.sqrt((sigma_a * sigma_a + delta_a * delta_a / v_a) / 2)
-        sigma_a_new = min(sigma_a_new, 0.2)  # Cap volatility
+        # Update volatility
+        sigma_a_new = self.glicko2_volatility(phi_a, v_a, delta_a, sigma_a)
         
         # Update deviation and rating
         phi_a_new = math.sqrt(phi_a * phi_a + sigma_a_new * sigma_a_new)
@@ -168,8 +404,7 @@ class ChessRatingSystem:
         v_b = 1 / (g_a * g_a * e_ba * (1 - e_ba))
         delta_b = v_b * g_a * (score_b - e_ba)
         
-        sigma_b_new = math.sqrt((sigma_b * sigma_b + delta_b * delta_b / v_b) / 2)
-        sigma_b_new = min(sigma_b_new, 0.2)
+        sigma_b_new = self.glicko2_volatility(phi_b, v_b, delta_b, sigma_b)
         
         phi_b_new = math.sqrt(phi_b * phi_b + sigma_b_new * sigma_b_new)
         phi_b_new = 1 / math.sqrt(1 / (phi_b_new * phi_b_new) + 1 / v_b)
@@ -265,19 +500,27 @@ class ChessRatingSystem:
         white_rating_before = self.players[white_player]['rating']
         black_rating_before = self.players[black_player]['rating']
         
-        # Calculate rating changes
-        white_change = self.calculate_elo_change(white_rating_before, black_rating_before, white_score)
-        black_change = self.calculate_elo_change(black_rating_before, white_rating_before, black_score)
+        # Calculate rating changes from the exact (unrounded) ratings
+        white_exact = self.players[white_player]['elo_exact']
+        black_exact = self.players[black_player]['elo_exact']
+        white_k = self.get_elo_k_factor(self.players[white_player])
+        black_k = self.get_elo_k_factor(self.players[black_player])
         
-        # Update ratings
-        self.players[white_player]['rating'] += white_change
-        self.players[black_player]['rating'] += black_change
+        self.players[white_player]['elo_exact'] += self.calculate_elo_change(
+            white_exact, black_exact, white_score, white_k)
+        self.players[black_player]['elo_exact'] += self.calculate_elo_change(
+            black_exact, white_exact, black_score, black_k)
+        
+        self.publish_elo_rating(self.players[white_player])
+        self.publish_elo_rating(self.players[black_player])
+        white_change = self.players[white_player]['rating'] - white_rating_before
+        black_change = self.players[black_player]['rating'] - black_rating_before
         
         # Update Glicko-2 ratings
         self.update_glicko2_ratings(self.players[white_player], self.players[black_player], white_score)
         
-        # Update USCF ratings
-        self.update_uscf_ratings(self.players[white_player], self.players[black_player], white_score)
+        # Buffer the game for the USCF event update
+        self.queue_uscf_game(white_player, black_player, white_score, date_str)
         
         # Update rating extremes for both players
         self.update_rating_extremes(self.players[white_player])
@@ -427,6 +670,7 @@ class ChessRatingSystem:
             for line in lines:
                 if self.process_game(line, game_number) is not None:
                     game_number += 1
+            self.flush_uscf_event()  # rate the last event
             
             print(f"Processed {len(self.games)} games for {len(self.players)} players")
             
@@ -1387,7 +1631,7 @@ class ChessRatingSystem:
             
             const eloCurrentDiv = document.createElement('div');
             eloCurrentDiv.className = 'rating-value';
-            eloCurrentDiv.innerHTML = '<strong><a href="https://en.wikipedia.org/wiki/Elo_rating_system" target="_blank" rel="noopener">ELO</a>:</strong> ' + player.rating;
+            eloCurrentDiv.innerHTML = '<strong><a href="https://handbook.fide.com/chapter/B022024" target="_blank" rel="noopener">ELO</a>:</strong> ' + player.rating;
             currentColumn.appendChild(eloCurrentDiv);
             
             const glickoCurrentDiv = document.createElement('div');
@@ -1397,7 +1641,7 @@ class ChessRatingSystem:
             
             const uscfCurrentDiv = document.createElement('div');
             uscfCurrentDiv.className = 'rating-value';
-            uscfCurrentDiv.innerHTML = '<strong><a href="https://new.uschess.org/sites/default/files/media/documents/the-us-chess-rating-system-revised-september-2020.pdf" target="_blank" rel="noopener">USCF</a>:</strong> ' + player.uscf_rating;
+            uscfCurrentDiv.innerHTML = '<strong><a href="https://www.glicko.net/ratings/rating.system.pdf" target="_blank" rel="noopener">USCF</a>:</strong> ' + player.uscf_rating;
             currentColumn.appendChild(uscfCurrentDiv);
             
             // Highest ratings column

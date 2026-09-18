@@ -784,7 +784,7 @@
             
             const eloCurrentDiv = document.createElement('div');
             eloCurrentDiv.className = 'rating-value';
-            eloCurrentDiv.innerHTML = '<strong><a href="https://en.wikipedia.org/wiki/Elo_rating_system" target="_blank" rel="noopener">ELO</a>:</strong> ' + player.rating;
+            eloCurrentDiv.innerHTML = '<strong><a href="https://handbook.fide.com/chapter/B022024" target="_blank" rel="noopener">ELO</a>:</strong> ' + player.rating;
             currentColumn.appendChild(eloCurrentDiv);
             
             const glickoCurrentDiv = document.createElement('div');
@@ -794,7 +794,7 @@
             
             const uscfCurrentDiv = document.createElement('div');
             uscfCurrentDiv.className = 'rating-value';
-            uscfCurrentDiv.innerHTML = '<strong><a href="https://new.uschess.org/sites/default/files/media/documents/the-us-chess-rating-system-revised-september-2020.pdf" target="_blank" rel="noopener">USCF</a>:</strong> ' + player.uscf_rating;
+            uscfCurrentDiv.innerHTML = '<strong><a href="https://www.glicko.net/ratings/rating.system.pdf" target="_blank" rel="noopener">USCF</a>:</strong> ' + player.uscf_rating;
             currentColumn.appendChild(uscfCurrentDiv);
             
             // Highest ratings column
