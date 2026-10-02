@@ -331,3 +331,23 @@ Ian G. - Andrew M. 0-1 20260916
 Kuba K. - Isaac H. 1-0 20260916
 Ari M. - Aiden V. 1-0 20260916
 Ricky T. - BYE 1-0 20260916
+Chris C. - Jeremy R. 1-0 20260930
+Ian G. - Nick H. 1-0 20260930
+Kuba K. - Andrew M. 1-0 20260930
+Ari M. - Isaac H. 0-1 20260930
+Sebastian S. - BYE 1-0 20260930
+Ian G. - Chris C. 0-1 20260930
+Isaac H. - Kuba K. 0-1 20260930
+Jeremy R. - Sebastian S. 1-0 20260930
+Nick H. - Ari M. 0-1 20260930
+Andrew M. - BYE 1-0 20260930
+Kuba K. - Chris C. 1-0 20260930
+Jeremy R. - Isaac H. 0-1 20260930
+Ari M. - Andrew M. 1-0 20260930
+Sebastian S. - Ian G. 1-0 20260930
+Nick H. - BYE 1-0 20260930
+Chris C. - Isaac H. 1-0 20260930
+Kuba K. - Nick H. 0-1 20260930
+Ari M. - Sebastian S. 1-0 20260930
+Andrew M. - Jeremy R. 0-1 20260930
+Ian G. - BYE 1-0 20260930
