@@ -351,3 +351,30 @@ Kuba K. - Nick H. 0-1 20260930
 Ari M. - Sebastian S. 1-0 20260930
 Andrew M. - Jeremy R. 0-1 20260930
 Ian G. - BYE 1-0 20260930
+Justin L. - Marco W. 0-1 20261014
+Chris C. - Mason M. 1-0 20261014
+Mason D. - Eric T. 0-1 20261014
+Jack M. - Nick H. 0-1 20261014
+Reagan M. - Zach P. 1-0 20261014
+Jeremy R. - Isaac H. 0-1 20261014
+Marco W. - Reagan M. 1-0 20261014
+Nick H. - Chris C. 1-0 20261014
+Isaac H. - Eric T. 0-1 20261014
+Rrick D. - Jeremy R. 1-0 20261014
+Zach P. - Mason D. 1-0 20261014
+Jack M. - Justin L. 0-1 20261014
+Mason M. - Cherie D. 0-1 20261014
+Eric T. - Marco W. 0-1 20261014
+Cherie D. - Nick H. 0-1 20261014
+Chris C. - Justin L. 1-0 20261014
+Reagan M. - Rrick D. 1-0 20261014
+Isaac H. - Zach P. 0-1 20261014
+Mason D. - Jeremy R. 0-1 20261014
+Jack M. - BYE 1-0 20261014
+Marco W. - Nick H. 1-0 20261014
+Zach P. - Chris C. 0-1 20261014
+Eric T. - Reagan M. 1-0 20261014
+Justin L. - Isaac H. 0-1 20261014
+Rrick D. - Jack M. 1-0 20261014
+Jeremy R. - Cherie D. 0-1 20261014
+Mason D. - BYE 1-0 20261014
